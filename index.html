@@ -282,8 +282,26 @@
     </div>
   </div>
 
+  <!-- 複数科目選択モーダル -->
+  <div id="lesson-select-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modal-select-title" class="modal-title">開講科目を選択</h3>
+        <button type="button" class="modal-close-btn" aria-label="閉じる">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="modal-select-desc" style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 6px;">
+          このコマには複数の科目が登録されています。詳細を確認したい科目を選択してください：
+        </p>
+        <div id="modal-select-list" class="lesson-select-list">
+          <!-- 各科目の選択肢カード -->
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- データファイルとアプリケーションスクリプト (キャッシュバスター付き) -->
-  <script src="data.js?v=20261026_03"></script>
-  <script src="app.js?v=20261026_03"></script>
+  <script src="data.js?v=20261026_04"></script>
+  <script src="app.js?v=20261026_04"></script>
 </body>
 </html>

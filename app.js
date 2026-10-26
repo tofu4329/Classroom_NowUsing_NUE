@@ -65,6 +65,10 @@
     modalLessonTitle: document.getElementById('modal-lesson-title'),
     modalLessonBody: document.getElementById('modal-lesson-body'),
     modalSyllabusLink: document.getElementById('modal-syllabus-link'),
+    lessonSelectModal: document.getElementById('lesson-select-modal'),
+    modalSelectTitle: document.getElementById('modal-select-title'),
+    modalSelectDesc: document.getElementById('modal-select-desc'),
+    modalSelectList: document.getElementById('modal-select-list'),
     timetableRoomSelect: document.getElementById('timetable-room-select'),
     quickRoomChips: document.getElementById('quick-room-chips'),
     timetableRoomName: document.getElementById('timetable-room-name'),
@@ -364,10 +368,16 @@
           const occ = getOccupyingLessons(state.semester, day, slot.id, room.name);
           if (occ.length === 0) {
             html += `<td class="matrix-cell free" title="${escapeHtml(room.name)} ${day}曜 ${escapeHtml(slot.name)}: 空き">空</td>`;
-          } else {
+          } else if (occ.length === 1) {
             const lesson = occ[0];
             const title = `${room.name} ${day}曜 ${slot.name}: ${lesson.name} (${lesson.teacher || ''})`;
             html += `<td class="matrix-cell occupied" title="${escapeHtml(title)}" onclick="window.__showLessonById('${escapeHtml(lesson.id)}')">${escapeHtml(lesson.name)}</td>`;
+          } else {
+            // 複数科目の場合
+            const count = occ.length;
+            const names = occ.map(l => l.name).join(' / ');
+            const title = `${room.name} ${day}曜 ${slot.name} [${count}科目登録]: ${names} (クリックして選択)`;
+            html += `<td class="matrix-cell occupied multiple" title="${escapeHtml(title)}" onclick="window.__showLessonSelect('${escapeHtml(room.name)}', '${day}', ${slot.id})"><span class="badge-multi">${count}</span>${escapeHtml(occ[0].name)}</td>`;
           }
         });
       });
@@ -383,6 +393,46 @@
     const l = DATA.lessons.find(item => item.id === id);
     if (l) openLessonModal(l);
   };
+
+  window.__showLessonSelect = function (roomName, day, slotId) {
+    const occ = getOccupyingLessons(state.semester, day, slotId, roomName);
+    if (occ.length === 0) return;
+    if (occ.length === 1) {
+      openLessonModal(occ[0]);
+      return;
+    }
+    openLessonSelectModal(roomName, day, slotId, occ);
+  };
+
+  // 複数科目選択モーダル
+  function openLessonSelectModal(roomName, day, slotId, lessons) {
+    if (!dom.lessonSelectModal || !dom.modalSelectTitle || !dom.modalSelectList) return;
+
+    dom.modalSelectTitle.textContent = `${roomName} の開講科目（全${lessons.length}件）`;
+    if (dom.modalSelectDesc) {
+      dom.modalSelectDesc.textContent = `${state.semester}・${day}曜 ${getSlotName(slotId)} に登録されている科目です。詳細・シラバスを見る科目を選択してください：`;
+    }
+
+    dom.modalSelectList.innerHTML = '';
+    lessons.forEach(l => {
+      const card = document.createElement('div');
+      card.className = 'lesson-select-card';
+      card.innerHTML = `
+        <div class="select-card-info">
+          <div class="select-card-name">📖 ${escapeHtml(l.name)}</div>
+          <div class="select-card-meta">👨‍🏫 ${escapeHtml(l.teacher || '担当者記載なし')}　|　時間割番号: ${escapeHtml(l.id)} (${escapeHtml(l.credit || '-')}単位)</div>
+        </div>
+        <div class="select-card-arrow">➔</div>
+      `;
+      card.addEventListener('click', () => {
+        dom.lessonSelectModal.classList.remove('show');
+        openLessonModal(l);
+      });
+      dom.modalSelectList.appendChild(card);
+    });
+
+    dom.lessonSelectModal.classList.add('show');
+  }
 
   // ----------------------------------------------------
   // レンダリング: 講義一覧・検索 (TAB 4)
@@ -702,17 +752,20 @@
     document.querySelectorAll('.modal-close-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         if (dom.lessonModal) dom.lessonModal.classList.remove('show');
+        if (dom.lessonSelectModal) dom.lessonSelectModal.classList.remove('show');
       });
     });
 
     // モーダル背景クリック
-    if (dom.lessonModal) {
-      dom.lessonModal.addEventListener('click', (e) => {
-        if (e.target === dom.lessonModal) {
-          dom.lessonModal.classList.remove('show');
-        }
-      });
-    }
+    [dom.lessonModal, dom.lessonSelectModal].forEach(modal => {
+      if (modal) {
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) {
+            modal.classList.remove('show');
+          }
+        });
+      }
+    });
 
     // タイムテーブル教室セレクト
     if (dom.timetableRoomSelect) {
