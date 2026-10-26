@@ -446,12 +446,21 @@
     if (!dom.modalLessonTitle || !dom.modalLessonBody || !dom.lessonModal) return;
 
     // シラバスURL生成 (https://www.nara-edu.ac.jp/ADMIN/KYOUMU/SYLLABUS/syllabus/2026/detail/2026_01_G(4桁).html)
-    const rawId = (lesson.id || '').trim();
+    const rawId = (lesson && lesson.id) ? String(lesson.id).trim() : '';
     const formattedId = rawId.startsWith('G') ? rawId : `G${rawId}`;
-    const syllabusUrl = `https://www.nara-edu.ac.jp/ADMIN/KYOUMU/SYLLABUS/syllabus/2026/detail/2026_01_${formattedId}.html`;
+    const syllabusUrl = formattedId
+      ? `https://www.nara-edu.ac.jp/ADMIN/KYOUMU/SYLLABUS/syllabus/2026/detail/2026_01_${formattedId}.html`
+      : 'https://www.nara-edu.ac.jp/ADMIN/KYOUMU/SYLLABUS/syllabus/2026/';
 
-    if (dom.modalSyllabusLink) {
-      dom.modalSyllabusLink.href = syllabusUrl;
+    const syllabusLink = document.getElementById('modal-syllabus-link') || dom.modalSyllabusLink;
+    if (syllabusLink) {
+      syllabusLink.href = syllabusUrl;
+      syllabusLink.setAttribute('href', syllabusUrl);
+      syllabusLink.onclick = function (e) {
+        e.stopPropagation();
+        window.open(syllabusUrl, '_blank');
+        return false;
+      };
     }
 
     dom.modalLessonTitle.textContent = lesson.name;
