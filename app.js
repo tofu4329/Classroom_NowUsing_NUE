@@ -194,6 +194,7 @@ window.CAP_EXEMPT_CONFIG = {
     btnDismissConflictBar: document.getElementById('btn-dismiss-conflict-bar'),
     btnReopenConflict: document.getElementById('btn-reopen-conflict'),
     btnAddSpecialLesson: document.getElementById('btn-add-special-lesson'),
+    btnShareMyTimetable: document.getElementById('btn-share-my-timetable'),
 
     btnClearMyTimetable: document.getElementById('btn-clear-my-timetable'),
     myTimetableTbody: document.getElementById('my-timetable-tbody'),
@@ -281,6 +282,144 @@ window.CAP_EXEMPT_CONFIG = {
 
     renderLessonsTab();
     renderMyTimetableTab();
+  }
+
+  // ----------------------------------------------------
+  // My時間割の共有 (ハッシュ化 & URLコピー / インポート)
+  // ----------------------------------------------------
+  function encodeTimetableHash(data) {
+    try {
+      const json = JSON.stringify(data);
+      const bytes = new TextEncoder().encode(json);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    } catch (e) {
+      console.error('時間割ハッシュの生成に失敗しました:', e);
+      return null;
+    }
+  }
+
+  function decodeTimetableHash(hashStr) {
+    try {
+      let base64 = hashStr.replace(/-/g, '+').replace(/_/g, '/');
+      while (base64.length % 4) {
+        base64 += '=';
+      }
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      const json = new TextDecoder().decode(bytes);
+      return JSON.parse(json);
+    } catch (e) {
+      console.error('時間割ハッシュのデコードに失敗しました:', e);
+      return null;
+    }
+  }
+
+  function copyToClipboard(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text);
+    }
+    return new Promise((resolve, reject) => {
+      try {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textArea);
+        if (successful) resolve();
+        else reject(new Error('execCommand failed'));
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
+  function shareMyTimetable() {
+    const s1 = state.myTimetable['前期'] || [];
+    const s2 = state.myTimetable['後期'] || [];
+    const totalCount = s1.length + s2.length;
+
+    if (totalCount === 0) {
+      showToast('⚠️ 時間割に科目が登録されていません');
+      return;
+    }
+
+    const payload = {
+      v: 1,
+      sem: state.mySemester,
+      s1: s1,
+      s2: s2
+    };
+
+    const hashStr = encodeTimetableHash(payload);
+    if (!hashStr) {
+      showToast('⚠️ 共有URLの生成に失敗しました');
+      return;
+    }
+
+    const shareUrl = `${window.location.origin}${window.location.pathname}#tt=${hashStr}`;
+
+    copyToClipboard(shareUrl).then(() => {
+      showToast('📋 共有URLをクリップボードにコピーしました！');
+    }).catch(() => {
+      prompt('以下の共有URLをコピーして時間割を共有できます:', shareUrl);
+    });
+  }
+
+  function checkSharedTimetableInUrl() {
+    const hash = window.location.hash || '';
+    if (!hash.startsWith('#tt=')) return;
+
+    const hashPayload = hash.slice(4);
+    if (!hashPayload) return;
+
+    const data = decodeTimetableHash(hashPayload);
+    if (!data || !Array.isArray(data.s1) || !Array.isArray(data.s2)) {
+      showToast('⚠️ 共有URLの時間割データ形式が無効です');
+      return;
+    }
+
+    const newCount1 = data.s1.length;
+    const newCount2 = data.s2.length;
+    const totalNew = newCount1 + newCount2;
+
+    const currentCount = (state.myTimetable['前期'] || []).length + (state.myTimetable['後期'] || []).length;
+    if (currentCount > 0) {
+      const ok = confirm(`共有された時間割データが見つかりました（前期: ${newCount1}件, 後期: ${newCount2}件）。\n現在の時間割を上書きして読み込みますか？`);
+      if (!ok) {
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+        return;
+      }
+    }
+
+    state.myTimetable['前期'] = data.s1;
+    state.myTimetable['後期'] = data.s2;
+    if (data.sem === '前期' || data.sem === '後期') {
+      state.mySemester = data.sem;
+    }
+    state.conflictAck['前期'] = false;
+    state.conflictAck['後期'] = false;
+    state.conflictDismissed['前期'] = false;
+    state.conflictDismissed['後期'] = false;
+
+    saveMyTimetable();
+    switchTab('my-timetable');
+    renderMyTimetableTab();
+    renderLessonsTab();
+
+    showToast(`🎉 共有された時間割を取り込みました！（計 ${totalNew} 科目）`);
+    history.replaceState(null, '', window.location.pathname + window.location.search);
   }
 
   // ----------------------------------------------------
@@ -1494,6 +1633,14 @@ window.CAP_EXEMPT_CONFIG = {
       });
     }
 
+    // 時間割の共有ボタン
+    if (dom.btnShareMyTimetable) {
+      dom.btnShareMyTimetable.addEventListener('click', shareMyTimetable);
+    }
+
+    // ハッシュ変更時にも時間割共有をチェック
+    window.addEventListener('hashchange', checkSharedTimetableInUrl);
+
     // 重複警告の「詳細を確認」ボタン
     if (dom.btnConflictDetails) {
       dom.btnConflictDetails.addEventListener('click', openConflictDetailsModal);
@@ -1580,6 +1727,9 @@ window.CAP_EXEMPT_CONFIG = {
     renderMatrixTab();
     renderLessonsTab();
     renderMyTimetableTab();
+
+    // URLハッシュに共有時間割が含まれているか確認
+    checkSharedTimetableInUrl();
   }
 
   if (document.readyState === 'loading') {
