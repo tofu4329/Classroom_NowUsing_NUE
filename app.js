@@ -468,10 +468,7 @@
       <div class="detail-grid">
         <div class="detail-item">
           <div class="detail-item-label">時間割番号</div>
-          <div class="detail-item-val">
-            ${escapeHtml(lesson.id)}
-            <a href="${escapeHtml(syllabusUrl)}" target="_blank" rel="noopener noreferrer" style="font-size: 0.8rem; margin-left: 6px; color: var(--primary);">[シラバス ↗]</a>
-          </div>
+          <div class="detail-item-val">${escapeHtml(lesson.id)}</div>
         </div>
         <div class="detail-item">
           <div class="detail-item-label">開講区分・単位</div>
