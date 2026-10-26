@@ -45,7 +45,10 @@
         <span class="tab-icon">📊</span> 全体稼働マトリクス
       </button>
       <button class="nav-tab" data-tab="lessons">
-        <span class="tab-icon">📖</span> 講義一覧・検索
+        <span class="tab-icon">📖</span> 科目全件検索
+      </button>
+      <button class="nav-tab" data-tab="my-timetable">
+        <span class="tab-icon">⭐</span> My時間割 <span id="my-badge-count" class="badge-count">0</span>
       </button>
     </nav>
   </header>
@@ -215,14 +218,23 @@
     </section>
 
     <!-- ============================================== -->
-    <!-- TAB 4: 開講科目一覧・検索 (Lessons) -->
+    <!-- TAB 4: 科目全件検索 (All Lessons Search) -->
     <!-- ============================================== -->
     <section id="tab-lessons" class="tab-content">
       <div class="card lesson-search-card">
         <div class="filter-row">
           <div class="filter-group flex-2">
-            <label class="filter-label">キーワード検索（科目名・担当教員・教室名）</label>
-            <input type="text" id="lesson-search-input" class="form-input" placeholder="例: 英語, 田中, 301, プログラミング...">
+            <label class="filter-label">キーワード検索（科目名・教員名・教室・時間割番号・評価方法）</label>
+            <input type="text" id="lesson-search-input" class="form-input" placeholder="例: 英語, 田中, 301, レポート, プログラミング...">
+          </div>
+          <div class="filter-group flex-1">
+            <label class="filter-label">開講学期</label>
+            <select id="lesson-sem-select" class="form-select">
+              <option value="all">すべての学期 (前期・後期・通年)</option>
+              <option value="前期">前期のみ</option>
+              <option value="後期">後期のみ</option>
+              <option value="通年">通年のみ</option>
+            </select>
           </div>
           <div class="filter-group flex-1">
             <label class="filter-label">曜日</label>
@@ -237,29 +249,126 @@
             </select>
           </div>
         </div>
+
+        <div class="filter-row" style="margin-top: 10px;">
+          <div class="filter-group flex-1">
+            <label class="filter-label">時限</label>
+            <select id="lesson-slot-select" class="form-select">
+              <option value="all">すべての時限</option>
+              <option value="1">1・2限 (09:00~10:30)</option>
+              <option value="2">3・4限 (10:40~12:10)</option>
+              <option value="3">5・6限 (13:00~14:30)</option>
+              <option value="4">7・8限 (14:40~16:10)</option>
+              <option value="5">9・10限 (16:20~17:50)</option>
+            </select>
+          </div>
+          <div class="filter-group flex-1">
+            <label class="filter-label">教室区分</label>
+            <select id="lesson-cat-select" class="form-select">
+              <option value="all">すべての教室</option>
+              <option value="lecture">🏢 一般講義室 (101~310・大講義室 等)</option>
+              <option value="info">💻 情報センター</option>
+              <option value="lab">🔬 実験室・理科系</option>
+              <option value="art">🎨 美術・書道・実習室</option>
+              <option value="music">🎵 音楽棟</option>
+              <option value="sports">🏃 体育・運動施設</option>
+              <option value="online">🌐 オンライン授業</option>
+              <option value="other">📚 演習室・センター・他</option>
+            </select>
+          </div>
+          <div class="filter-group align-end">
+            <button type="button" id="btn-lesson-clear" class="btn btn-outline" style="height: 42px;">
+              🔄 検索条件をクリア
+            </button>
+          </div>
+        </div>
       </div>
 
-      <div class="lesson-results-count">
-        検索結果: <strong id="lesson-results-count">0</strong> 件
+      <div class="lesson-results-header">
+        <div class="lesson-results-count">
+          該当科目: <strong id="lesson-results-count">0</strong> 件 / 全 <span id="lesson-total-count">834</span> 件
+        </div>
+        <div class="lesson-table-hint">
+          ※ヘッダーをクリックすると並び替えできます。「★」でMy時間割に追加できます。
+        </div>
       </div>
 
-      <div class="card table-responsive">
-        <table class="data-table" id="lessons-table">
+      <div class="card table-responsive" style="max-height: 75vh; overflow-y: auto;">
+        <table class="data-table sortable-table" id="lessons-table">
           <thead>
             <tr>
-              <th>番号</th>
-              <th>学期</th>
-              <th>曜日・時限</th>
-              <th>科目名</th>
-              <th>教室</th>
-              <th>担当教員</th>
-              <th>単位</th>
+              <th style="width: 50px; text-align: center;">追加</th>
+              <th data-sort="id" class="sortable-th">番号 <span class="sort-icon">↕</span></th>
+              <th data-sort="semester" class="sortable-th">学期 <span class="sort-icon">↕</span></th>
+              <th data-sort="daySlot" class="sortable-th">曜日・時限 <span class="sort-icon">↕</span></th>
+              <th data-sort="name" class="sortable-th">科目名 <span class="sort-icon">↕</span></th>
+              <th data-sort="rooms" class="sortable-th">教室 <span class="sort-icon">↕</span></th>
+              <th data-sort="teacher" class="sortable-th">担当教員 <span class="sort-icon">↕</span></th>
+              <th data-sort="credit" class="sortable-th" style="width: 60px;">単位 <span class="sort-icon">↕</span></th>
+              <th style="width: 80px; text-align: center;">シラバス</th>
             </tr>
           </thead>
           <tbody id="lessons-tbody">
             <!-- 動的生成 -->
           </tbody>
         </table>
+      </div>
+    </section>
+
+    <!-- ============================================== -->
+    <!-- TAB 5: My時間割 (Personal Timetable Builder) -->
+    <!-- ============================================== -->
+    <section id="tab-my-timetable" class="tab-content">
+      <div class="card my-timetable-panel">
+        <div class="my-timetable-topbar">
+          <div class="my-sem-selector">
+            <button type="button" class="my-sem-btn active" data-my-sem="前期">前期の時間割</button>
+            <button type="button" class="my-sem-btn" data-my-sem="後期">後期の時間割</button>
+          </div>
+
+          <div class="my-stats-group">
+            <div class="my-stat-chip">
+              登録科目: <strong id="my-stat-count">0</strong> 科目
+            </div>
+            <div class="my-stat-chip credit">
+              合計単位: <strong id="my-stat-credits">0</strong> 単位
+            </div>
+            <button type="button" id="btn-clear-my-timetable" class="btn btn-outline btn-sm text-danger">
+              🗑️ 時間割をリセット
+            </button>
+          </div>
+        </div>
+
+        <div id="my-conflict-alert" class="conflict-alert" style="display: none;">
+          ⚠️ <strong>重複警告:</strong> 同じコマに複数の科目が登録されています！
+        </div>
+      </div>
+
+      <!-- 週間パーソナル時間割表 -->
+      <div class="card table-responsive">
+        <table class="timetable-table my-timetable-table" id="my-timetable-table">
+          <thead>
+            <tr>
+              <th>時限</th>
+              <th>月曜日</th>
+              <th>火曜日</th>
+              <th>水曜日</th>
+              <th>木曜日</th>
+              <th>金曜日</th>
+            </tr>
+          </thead>
+          <tbody id="my-timetable-tbody">
+            <!-- 動的生成 -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 集中講義・その他登録リスト -->
+      <div class="card my-special-lessons-card" id="my-special-lessons-card">
+        <h3 class="special-lessons-title">📌 集中講義・コマ未定の登録科目 (<span id="my-special-count">0</span>)</h3>
+        <div id="my-special-list" class="my-special-list">
+          <div class="empty-hint">集中講義などの登録科目はありません。</div>
+        </div>
       </div>
     </section>
   </main>
@@ -301,7 +410,7 @@
   </div>
 
   <!-- データファイルとアプリケーションスクリプト (キャッシュバスター付き) -->
-  <script src="data.js?v=20261026_04"></script>
-  <script src="app.js?v=20261026_04"></script>
+  <script src="data.js?v=20261026_05"></script>
+  <script src="app.js?v=20261026_05"></script>
 </body>
 </html>
