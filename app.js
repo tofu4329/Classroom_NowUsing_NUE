@@ -1175,9 +1175,6 @@ window.CAP_EXEMPT_CONFIG = {
       openConflictDetailsModal();
     }
   }
-      openConflictDetailsModal();
-    }
-  }
 
   // ----------------------------------------------------
   // モーダル: コマから科目を選択・追加 (Slot Picker)
