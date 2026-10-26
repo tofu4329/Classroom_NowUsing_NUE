@@ -500,8 +500,8 @@
           } else {
             const count = occ.length;
             const names = occ.map(l => l.name).join(' / ');
-            const title = `${room.name} ${day}曜 ${slot.name} [${count}科目登録]: ${names} (クリックして選択)`;
-            html += `<td class="matrix-cell occupied multiple" title="${escapeHtml(title)}" onclick="window.__showLessonSelect('${escapeHtml(room.name)}', '${day}', ${slot.id})"><span class="badge-multi">${count}</span>${escapeHtml(occ[0].name)}</td>`;
+            const title = `${room.name} ${day}曜 ${slot.name} [${count}件登録]: ${names} (クリックして科目を選択)`;
+            html += `<td class="matrix-cell occupied multiple" title="${escapeHtml(title)}" onclick="window.__showLessonSelect('${escapeHtml(room.name)}', '${day}', ${slot.id})"><span class="badge-multi">[${count}件]</span>${escapeHtml(occ.map(l => l.name).join(' / '))}</td>`;
           }
         });
       });
@@ -530,9 +530,15 @@
   function openLessonSelectModal(roomName, day, slotId, lessons) {
     if (!dom.lessonSelectModal || !dom.modalSelectTitle || !dom.modalSelectList) return;
 
-    dom.modalSelectTitle.textContent = `${roomName} の開講科目（全${lessons.length}件）`;
+    dom.modalSelectTitle.innerHTML = `
+      <span>${escapeHtml(roomName)}</span>
+      <span style="font-size: 0.85rem; font-weight: 500; color: var(--text-muted); margin-left: 8px;">(${escapeHtml(state.semester)} / ${escapeHtml(day)}曜 ${escapeHtml(getSlotName(slotId))})</span>
+    `;
+
     if (dom.modalSelectDesc) {
-      dom.modalSelectDesc.textContent = `${state.semester}・${day}曜 ${getSlotName(slotId)} に登録されている科目です。詳細・シラバスを見る科目を選択してください：`;
+      dom.modalSelectDesc.innerHTML = `
+        このコマには <strong>${lessons.length} 件</strong> の科目が登録されています。詳細やシラバスを確認したい科目を選択してください：
+      `;
     }
 
     dom.modalSelectList.innerHTML = '';
@@ -541,10 +547,21 @@
       card.className = 'lesson-select-card';
       card.innerHTML = `
         <div class="select-card-info">
+          <div class="select-card-badges">
+            <span class="select-id-badge">#${escapeHtml(l.id)}</span>
+            <span class="badge">${escapeHtml(l.semester)}</span>
+            <span class="badge" style="background: #e0f2fe; color: #0369a1;">${escapeHtml(l.credit || '-')}単位</span>
+          </div>
           <div class="select-card-name">📖 ${escapeHtml(l.name)}</div>
-          <div class="select-card-meta">👨‍🏫 ${escapeHtml(l.teacher || '担当者記載なし')}　|　時間割番号: ${escapeHtml(l.id)} (${escapeHtml(l.credit || '-')}単位)</div>
+          <div class="select-card-meta">
+            <span class="select-meta-item">👨‍🏫 ${escapeHtml(l.teacher || '担当者記載なし')}</span>
+            <span class="select-meta-item">⏱ ${escapeHtml(l.periodRaw || '')}</span>
+            <span class="select-meta-item">🏢 ${escapeHtml((l.rooms || []).join(', ') || '教室未定')}</span>
+          </div>
         </div>
-        <div class="select-card-arrow">➔</div>
+        <div class="select-card-action">
+          詳細・シラバス ➔
+        </div>
       `;
       card.addEventListener('click', () => {
         dom.lessonSelectModal.classList.remove('show');

@@ -769,13 +769,14 @@ body {
 
 .badge-multi {
   display: inline-block;
-  background: #7c3aed;
+  background: #6366f1;
   color: #ffffff;
-  font-size: 0.65rem;
+  font-size: 0.7rem;
   font-weight: 700;
-  padding: 1px 5px;
+  padding: 1px 6px;
   border-radius: 4px;
-  margin-right: 3px;
+  margin-right: 4px;
+  letter-spacing: -0.01em;
   vertical-align: middle;
 }
 
@@ -783,52 +784,96 @@ body {
 .lesson-select-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-top: 8px;
+  gap: 12px;
+  margin-top: 10px;
 }
 
 .lesson-select-card {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  background: #f8fafc;
+  gap: 14px;
+  padding: 16px 18px;
+  background: #ffffff;
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
+  border-left: 4px solid var(--primary);
+  border-radius: var(--radius-lg);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: var(--shadow-sm);
 }
 
 .lesson-select-card:hover {
-  background: var(--primary-light);
+  background: #f8fafc;
   border-color: var(--primary);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-sm);
+  border-left-width: 6px;
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
 }
 
 .select-card-info {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+}
+
+.select-card-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.select-id-badge {
+  font-family: monospace;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: var(--radius-sm);
+  background: #f1f5f9;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
 }
 
 .select-card-name {
-  font-size: 0.95rem;
+  font-size: 1.05rem;
   font-weight: 700;
-  color: #1e293b;
+  color: #0f172a;
+  line-height: 1.35;
+  margin-bottom: 6px;
 }
 
 .select-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
   font-size: 0.8rem;
   color: var(--text-secondary);
 }
 
-.select-card-arrow {
-  font-size: 1.1rem;
+.select-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.select-card-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 14px;
+  background: var(--primary-light);
   color: var(--primary);
+  font-size: 0.825rem;
   font-weight: 700;
+  border-radius: var(--radius-md);
+  white-space: nowrap;
   flex-shrink: 0;
+  transition: all 0.15s;
+}
+
+.lesson-select-card:hover .select-card-action {
+  background: var(--primary);
+  color: #ffffff;
 }
 
 /* ================= Lessons Table ================= */
