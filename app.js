@@ -64,6 +64,7 @@
     lessonModal: document.getElementById('lesson-modal'),
     modalLessonTitle: document.getElementById('modal-lesson-title'),
     modalLessonBody: document.getElementById('modal-lesson-body'),
+    modalSyllabusLink: document.getElementById('modal-syllabus-link'),
     timetableRoomSelect: document.getElementById('timetable-room-select'),
     quickRoomChips: document.getElementById('quick-room-chips'),
     timetableRoomName: document.getElementById('timetable-room-name'),
@@ -444,12 +445,24 @@
   function openLessonModal(lesson) {
     if (!dom.modalLessonTitle || !dom.modalLessonBody || !dom.lessonModal) return;
 
+    // シラバスURL生成 (https://www.nara-edu.ac.jp/ADMIN/KYOUMU/SYLLABUS/syllabus/2026/detail/2026_01_G(4桁).html)
+    const rawId = (lesson.id || '').trim();
+    const formattedId = rawId.startsWith('G') ? rawId : `G${rawId}`;
+    const syllabusUrl = `https://www.nara-edu.ac.jp/ADMIN/KYOUMU/SYLLABUS/syllabus/2026/detail/2026_01_${formattedId}.html`;
+
+    if (dom.modalSyllabusLink) {
+      dom.modalSyllabusLink.href = syllabusUrl;
+    }
+
     dom.modalLessonTitle.textContent = lesson.name;
     dom.modalLessonBody.innerHTML = `
       <div class="detail-grid">
         <div class="detail-item">
           <div class="detail-item-label">時間割番号</div>
-          <div class="detail-item-val">${escapeHtml(lesson.id)}</div>
+          <div class="detail-item-val">
+            ${escapeHtml(lesson.id)}
+            <a href="${escapeHtml(syllabusUrl)}" target="_blank" rel="noopener noreferrer" style="font-size: 0.8rem; margin-left: 6px; color: var(--primary);">[シラバス ↗]</a>
+          </div>
         </div>
         <div class="detail-item">
           <div class="detail-item-label">開講区分・単位</div>
