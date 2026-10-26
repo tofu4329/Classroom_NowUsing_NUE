@@ -224,18 +224,21 @@
       <div class="card lesson-search-card">
         <div class="filter-row">
           <div class="filter-group flex-2">
-            <label class="filter-label">キーワード検索（科目名・教員名・教室・時間割番号・評価方法）</label>
-            <input type="text" id="lesson-search-input" class="form-input" placeholder="例: 英語, 田中, 301, レポート, プログラミング...">
+            <label class="filter-label">キーワード検索</label>
+            <input type="text" id="lesson-search-input" class="form-input" placeholder="例: 英語 田中 301">
           </div>
           <div class="filter-group flex-1">
             <label class="filter-label">開講学期</label>
-            <select id="lesson-sem-select" class="form-select">
-              <option value="all">すべての学期 (前期・後期・通年)</option>
-              <option value="前期">前期のみ</option>
-              <option value="後期">後期のみ</option>
-              <option value="通年">通年のみ</option>
-            </select>
+            <div class="btn-group" id="lesson-sem-selector">
+              <button type="button" class="pill-btn active" data-sem="all">すべて</button>
+              <button type="button" class="pill-btn" data-sem="前期">前期</button>
+              <button type="button" class="pill-btn" data-sem="後期">後期</button>
+              <button type="button" class="pill-btn" data-sem="通年">通年</button>
+            </div>
           </div>
+        </div>
+
+        <div class="filter-row" style="margin-top: 10px;">
           <div class="filter-group flex-1">
             <label class="filter-label">曜日</label>
             <select id="lesson-day-select" class="form-select">
@@ -248,9 +251,6 @@
               <option value="集中">集中講義</option>
             </select>
           </div>
-        </div>
-
-        <div class="filter-row" style="margin-top: 10px;">
           <div class="filter-group flex-1">
             <label class="filter-label">時限</label>
             <select id="lesson-slot-select" class="form-select">
@@ -289,7 +289,7 @@
           該当科目: <strong id="lesson-results-count">0</strong> 件 / 全 <span id="lesson-total-count">834</span> 件
         </div>
         <div class="lesson-table-hint">
-          ※ヘッダーをクリックすると並び替えできます。「★」でMy時間割に追加できます。
+          ※「番号」「曜日・時限」をクリックして並び替えできます。「★」でMy時間割に追加できます。
         </div>
       </div>
 
@@ -299,13 +299,11 @@
             <tr>
               <th style="width: 50px; text-align: center;">追加</th>
               <th data-sort="id" class="sortable-th">番号 <span class="sort-icon">↕</span></th>
-              <th data-sort="semester" class="sortable-th">学期 <span class="sort-icon">↕</span></th>
+              <th>学期</th>
               <th data-sort="daySlot" class="sortable-th">曜日・時限 <span class="sort-icon">↕</span></th>
-              <th data-sort="name" class="sortable-th">科目名 <span class="sort-icon">↕</span></th>
-              <th data-sort="rooms" class="sortable-th">教室 <span class="sort-icon">↕</span></th>
-              <th data-sort="teacher" class="sortable-th">担当教員 <span class="sort-icon">↕</span></th>
-              <th data-sort="credit" class="sortable-th" style="width: 60px;">単位 <span class="sort-icon">↕</span></th>
-              <th style="width: 80px; text-align: center;">シラバス</th>
+              <th>科目名</th>
+              <th>教室</th>
+              <th>担当教員</th>
             </tr>
           </thead>
           <tbody id="lessons-tbody">
@@ -409,8 +407,29 @@
     </div>
   </div>
 
+  <!-- My時間割用：コマから科目追加モーダル -->
+  <div id="slot-picker-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 650px;">
+      <div class="modal-header">
+        <div>
+          <h3 id="slot-picker-title" class="modal-title">科目を時間割に追加</h3>
+          <p id="slot-picker-subtitle" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;"></p>
+        </div>
+        <button type="button" class="modal-close-btn" aria-label="閉じる">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="margin-bottom: 8px;">
+          <input type="text" id="slot-picker-search" class="form-input" placeholder="この時限の科目を絞り込み...">
+        </div>
+        <div id="slot-picker-list" class="lesson-select-list" style="max-height: 55vh; overflow-y: auto;">
+          <!-- 動的生成 -->
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- データファイルとアプリケーションスクリプト (キャッシュバスター付き) -->
-  <script src="data.js?v=20261026_06"></script>
-  <script src="app.js?v=20261026_06"></script>
+  <script src="data.js?v=20261026_07"></script>
+  <script src="app.js?v=20261026_07"></script>
 </body>
 </html>

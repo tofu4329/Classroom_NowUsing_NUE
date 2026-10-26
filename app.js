@@ -33,12 +33,15 @@
   // LocalStorage キー
   const STORAGE_KEY = 'nara_edu_my_timetable_v1';
 
+  // 曜日の順序マップ
+  const DAY_ORDER_MAP = { '月': 1, '火': 2, '水': 3, '木': 4, '金': 5, '集中': 6 };
+
   // アプリケーション状態
   const state = {
-    semester: '前期', // メイン学期
+    semester: '前期',
     day: '月',
     slot: 1, // 1: 1・2限, 2: 3・4限, 3: 5・6限, 4: 7・8限, 5: 9・10限
-    category: 'lecture', // 'all', 'lecture', etc.
+    category: 'lecture',
     searchQuery: '',
     showOccupied: true,
     currentTab: 'free-rooms',
@@ -54,7 +57,7 @@
       cat: 'all'
     },
     lessonSort: {
-      field: 'id',
+      field: 'id', // 'id' または 'daySlot' のみ
       order: 'asc'
     },
 
@@ -63,7 +66,10 @@
     myTimetable: {
       '前期': [],
       '後期': []
-    }
+    },
+
+    // スロットピッカーモーダルの現在選択コンテキスト
+    activeSlotPicker: null
   };
 
   // DOM要素
@@ -94,6 +100,12 @@
     modalSelectDesc: document.getElementById('modal-select-desc'),
     modalSelectList: document.getElementById('modal-select-list'),
 
+    slotPickerModal: document.getElementById('slot-picker-modal'),
+    slotPickerTitle: document.getElementById('slot-picker-title'),
+    slotPickerSubtitle: document.getElementById('slot-picker-subtitle'),
+    slotPickerSearch: document.getElementById('slot-picker-search'),
+    slotPickerList: document.getElementById('slot-picker-list'),
+
     // タイムテーブル
     timetableRoomSelect: document.getElementById('timetable-room-select'),
     quickRoomChips: document.getElementById('quick-room-chips'),
@@ -107,7 +119,7 @@
 
     // 科目全件検索
     lessonSearchInput: document.getElementById('lesson-search-input'),
-    lessonSemSelect: document.getElementById('lesson-sem-select'),
+    lessonSemBtns: document.querySelectorAll('#lesson-sem-selector .pill-btn'),
     lessonDaySelect: document.getElementById('lesson-day-select'),
     lessonSlotSelect: document.getElementById('lesson-slot-select'),
     lessonCatSelect: document.getElementById('lesson-cat-select'),
@@ -129,7 +141,6 @@
     mySpecialList: document.getElementById('my-special-list')
   };
 
-  // 人気講義室
   const POPULAR_ROOMS = ['101教室', '102教室', '105教室', '201教室', '206教室', '306教室', '310教室', '大講義室', '情報センター実習室（3F）'];
 
   // ----------------------------------------------------
@@ -167,19 +178,16 @@
     dom.myBadgeCount.style.display = totalCount > 0 ? 'inline-flex' : 'none';
   }
 
-  // 登録中か判定
   function isLessonInMyTimetable(lessonId) {
     const sem = state.mySemester;
     const list = state.myTimetable[sem] || [];
     return list.includes(lessonId);
   }
 
-  // 追加/削除のトグル
   function toggleLessonInMyTimetable(lessonId) {
     const lesson = DATA.lessons.find(l => l.id === lessonId);
     if (!lesson) return;
 
-    // 学期（通年の場合は現在のmySemesterに追加）
     let sem = state.mySemester;
     if (lesson.semester === '前期') sem = '前期';
     if (lesson.semester === '後期') sem = '後期';
@@ -189,7 +197,7 @@
 
     if (idx >= 0) {
       list.splice(idx, 1);
-      showToast(`「${lesson.name}」をMy時間割(${sem})から削除しました`);
+      showToast(`「${lesson.name}」を削除しました`);
     } else {
       list.push(lessonId);
       showToast(`「${lesson.name}」をMy時間割(${sem})に追加しました！ ⭐`);
@@ -198,7 +206,6 @@
     state.myTimetable[sem] = list;
     saveMyTimetable();
 
-    // 関連ビューを更新
     renderLessonsTab();
     renderMyTimetableTab();
   }
@@ -249,7 +256,6 @@
       .replace(/'/g, '&#039;');
   }
 
-  // 簡易トースト通知
   function showToast(msg) {
     let toast = document.getElementById('app-toast');
     if (!toast) {
@@ -527,18 +533,14 @@
     openLessonSelectModal(roomName, day, slotId, occ);
   };
 
+  // 複数科目選択モーダル (元のシンプル構成 + 各科目の枠囲い)
   function openLessonSelectModal(roomName, day, slotId, lessons) {
     if (!dom.lessonSelectModal || !dom.modalSelectTitle || !dom.modalSelectList) return;
 
-    dom.modalSelectTitle.innerHTML = `
-      <span>${escapeHtml(roomName)}</span>
-      <span style="font-size: 0.85rem; font-weight: 500; color: var(--text-muted); margin-left: 8px;">(${escapeHtml(state.semester)} / ${escapeHtml(day)}曜 ${escapeHtml(getSlotName(slotId))})</span>
-    `;
+    dom.modalSelectTitle.innerHTML = `${escapeHtml(roomName)} の開講科目（全${lessons.length}件）`;
 
     if (dom.modalSelectDesc) {
-      dom.modalSelectDesc.innerHTML = `
-        このコマには <strong>${lessons.length} 件</strong> の科目が登録されています。詳細やシラバスを確認したい科目を選択してください：
-      `;
+      dom.modalSelectDesc.textContent = `${state.semester}・${day}曜 ${getSlotName(slotId)} に登録されている科目です。詳細を見る科目を選択してください：`;
     }
 
     dom.modalSelectList.innerHTML = '';
@@ -546,21 +548,11 @@
       const card = document.createElement('div');
       card.className = 'lesson-select-card';
       card.innerHTML = `
-        <div class="select-card-info">
-          <div class="select-card-badges">
-            <span class="select-id-badge">#${escapeHtml(l.id)}</span>
-            <span class="badge">${escapeHtml(l.semester)}</span>
-            <span class="badge" style="background: #e0f2fe; color: #0369a1;">${escapeHtml(l.credit || '-')}単位</span>
-          </div>
-          <div class="select-card-name">📖 ${escapeHtml(l.name)}</div>
-          <div class="select-card-meta">
-            <span class="select-meta-item">👨‍🏫 ${escapeHtml(l.teacher || '担当者記載なし')}</span>
-            <span class="select-meta-item">⏱ ${escapeHtml(l.periodRaw || '')}</span>
-            <span class="select-meta-item">🏢 ${escapeHtml((l.rooms || []).join(', ') || '教室未定')}</span>
-          </div>
-        </div>
-        <div class="select-card-action">
-          詳細・シラバス ➔
+        <div class="select-card-name">📖 ${escapeHtml(l.name)}</div>
+        <div class="select-card-meta">
+          <span>👨‍🏫 ${escapeHtml(l.teacher || '担当者記載なし')}</span>
+          <span>時間割番号: ${escapeHtml(l.id)}</span>
+          <span>${escapeHtml(l.periodRaw || '')}</span>
         </div>
       `;
       card.addEventListener('click', () => {
@@ -580,14 +572,14 @@
     if (!dom.lessonsTbody) return;
 
     const f = state.lessonFilter;
-    const q = f.q.toLowerCase();
+    const q = f.q.toLowerCase().trim();
 
     // フィルタリング
     let filtered = DATA.lessons.filter(l => {
-      // 学期
-      if (f.sem !== 'all' && l.semester !== f.sem) {
-        if (f.sem === '前期' && l.semester !== '通年') return false;
-        if (f.sem === '後期' && l.semester !== '通年') return false;
+      // 学期 (チップ選択)
+      if (f.sem !== 'all') {
+        if (f.sem === '前期' && l.semester !== '前期' && l.semester !== '通年') return false;
+        if (f.sem === '後期' && l.semester !== '後期' && l.semester !== '通年') return false;
         if (f.sem === '通年' && l.semester !== '通年') return false;
       }
 
@@ -603,11 +595,9 @@
       // 教室区分
       if (f.cat !== 'all') {
         if (f.cat === 'online') {
-          // オンライン判定
           const hasOnline = (l.rooms || []).includes('オンライン') || (l.name || '').includes('オンライン');
           if (!hasOnline) return false;
         } else {
-          // 教室カテゴリに合致する部屋が1つでもあるか
           const matchCat = (l.rooms || []).some(roomName => {
             const rObj = DATA.rooms.find(r => r.name === roomName);
             return rObj && rObj.category === f.cat;
@@ -616,56 +606,53 @@
         }
       }
 
-      // キーワード（科目名・教員名・教室・ID・評価方法テキスト）
+      // AND検索対応 (全角半角スペースで分割し、全ワードに合致)
       if (q) {
-        const matchName = (l.name || '').toLowerCase().includes(q);
-        const matchTeacher = (l.teacher || '').toLowerCase().includes(q);
-        const matchRoom = (l.rooms || []).some(r => r.toLowerCase().includes(q));
-        const matchId = (l.id || '').toLowerCase().includes(q);
-        const matchEval = (l.eval || '').toLowerCase().includes(q);
-        if (!matchName && !matchTeacher && !matchRoom && !matchId && !matchEval) return false;
+        const words = q.split(/[\s\u3000]+/).filter(w => w.length > 0);
+        if (words.length > 0) {
+          const allMatch = words.every(word => {
+            return (l.name || '').toLowerCase().includes(word) ||
+                   (l.teacher || '').toLowerCase().includes(word) ||
+                   (l.rooms || []).some(r => r.toLowerCase().includes(word)) ||
+                   (l.id || '').toLowerCase().includes(word) ||
+                   (l.eval || '').toLowerCase().includes(word);
+          });
+          if (!allMatch) return false;
+        }
       }
 
       return true;
     });
 
-    // ソート処理
+    // 並べ替えは「曜日時限」と「時間割番号」のみ
     const sortField = state.lessonSort.field;
     const sortOrder = state.lessonSort.order === 'desc' ? -1 : 1;
 
     filtered.sort((a, b) => {
-      let valA, valB;
-      if (sortField === 'id') {
-        valA = a.id || '';
-        valB = b.id || '';
-      } else if (sortField === 'semester') {
-        valA = a.semester || '';
-        valB = b.semester || '';
-      } else if (sortField === 'daySlot') {
-        valA = `${a.day || ''}_${(a.slots || [])[0] || 99}`;
-        valB = `${b.day || ''}_${(b.slots || [])[0] || 99}`;
-      } else if (sortField === 'name') {
-        valA = a.name || '';
-        valB = b.name || '';
-      } else if (sortField === 'rooms') {
-        valA = (a.rooms || []).join(', ');
-        valB = (b.rooms || []).join(', ');
-      } else if (sortField === 'teacher') {
-        valA = a.teacher || '';
-        valB = b.teacher || '';
-      } else if (sortField === 'credit') {
-        valA = parseFloat(a.credit) || 0;
-        valB = parseFloat(b.credit) || 0;
-        return (valA - valB) * sortOrder;
+      if (sortField === 'daySlot') {
+        // 曜日・時限の正しい順序（月1~5 -> 火1~5 -> ... -> 金1~5 -> 集中）
+        const dScoreA = DAY_ORDER_MAP[a.day] || 9;
+        const sScoreA = (a.slots && a.slots.length > 0) ? a.slots[0] : (a.day === '集中' ? 98 : 99);
+        const scoreA = dScoreA * 100 + sScoreA;
+
+        const dScoreB = DAY_ORDER_MAP[b.day] || 9;
+        const sScoreB = (b.slots && b.slots.length > 0) ? b.slots[0] : (b.day === '集中' ? 98 : 99);
+        const scoreB = dScoreB * 100 + sScoreB;
+
+        return (scoreA - scoreB) * sortOrder;
+      } else {
+        // 'id' (時間割番号)
+        const idA = a.id || '';
+        const idB = b.id || '';
+        return idA.localeCompare(idB, 'ja') * sortOrder;
       }
-      return valA.localeCompare(valB, 'ja') * sortOrder;
     });
 
     // 件数更新
     if (dom.lessonResultsCount) dom.lessonResultsCount.textContent = filtered.length;
     if (dom.lessonTotalCount) dom.lessonTotalCount.textContent = DATA.lessons.length;
 
-    // ソートヘッダーのUI更新
+    // ソートヘッダーのアイコン更新
     document.querySelectorAll('.sortable-th').forEach(th => {
       const field = th.dataset.sort;
       const isActive = (field === state.lessonSort.field);
@@ -680,15 +667,18 @@
       }
     });
 
-    // 高速HTML生成（全件対応）
+    // 学期チップのUI更新
+    dom.lessonSemBtns.forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.sem === state.lessonFilter.sem);
+    });
+
+    // テーブル生成 (シラバス列・単位数列は削除)
     let rowsHtml = '';
     const myLessonsPre = state.myTimetable['前期'] || [];
     const myLessonsPost = state.myTimetable['後期'] || [];
 
     filtered.forEach(l => {
       const isAdded = myLessonsPre.includes(l.id) || myLessonsPost.includes(l.id);
-      const cleanId = (l.id || '').trim().startsWith('G') ? l.id : `G${l.id}`;
-      const syllabusUrl = `https://www.nara-edu.ac.jp/ADMIN/KYOUMU/SYLLABUS/syllabus/2026/detail/2026_01_${cleanId}.html`;
 
       rowsHtml += `
         <tr data-lesson-id="${escapeHtml(l.id)}">
@@ -703,17 +693,11 @@
           <td style="font-weight: 600; color: #1e40af; cursor: pointer;" onclick="window.__showLessonById('${escapeHtml(l.id)}')">${escapeHtml(l.name)}</td>
           <td>${escapeHtml((l.rooms || []).join(', '))}</td>
           <td>${escapeHtml(l.teacher || '')}</td>
-          <td style="text-align: center;">${escapeHtml(l.credit || '')}</td>
-          <td style="text-align: center;">
-            <a href="${escapeHtml(syllabusUrl)}" target="_blank" rel="noopener noreferrer" class="btn-syllabus-mini" title="シラバスを開く" onclick="event.stopPropagation();">
-              🔗
-            </a>
-          </td>
         </tr>
       `;
     });
 
-    dom.lessonsTbody.innerHTML = rowsHtml || `<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 40px;">該当する科目が見つかりませんでした。条件を変更してください。</td></tr>`;
+    dom.lessonsTbody.innerHTML = rowsHtml || `<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 40px;">該当する科目が見つかりませんでした。条件を変更してください。</td></tr>`;
   }
 
   window.__toggleMyLesson = function (lessonId, event) {
@@ -731,25 +715,20 @@
     const lessonIds = state.myTimetable[currentSem] || [];
     const registeredLessons = lessonIds.map(id => DATA.lessons.find(l => l.id === id)).filter(Boolean);
 
-    // 統計計算
     let totalCredits = 0;
     registeredLessons.forEach(l => {
-      const cr = parseFloat(l.credit) || 0;
-      totalCredits += cr;
+      totalCredits += (parseFloat(l.credit) || 0);
     });
 
     if (dom.myStatCount) dom.myStatCount.textContent = registeredLessons.length;
     if (dom.myStatCredits) dom.myStatCredits.textContent = totalCredits;
 
-    // 学期ボタンのUI更新
     dom.mySemBtns.forEach(btn => {
       btn.classList.toggle('active', btn.dataset.mySem === currentSem);
     });
 
-    // スロット配置の辞書作成 & 重複検出
-    // slotMap: { "月_1": [lesson1, lesson2] }
     const slotMap = {};
-    const specialLessons = []; // 集中講義など
+    const specialLessons = [];
     let hasConflict = false;
 
     registeredLessons.forEach(l => {
@@ -771,7 +750,7 @@
       dom.myConflictAlert.style.display = hasConflict ? 'block' : 'none';
     }
 
-    // テーブル生成
+    // テーブル生成 (空きコマをクリックすれば該当講義一覧から選べる)
     dom.myTimetableTbody.innerHTML = '';
     DATA.slots.forEach(slot => {
       const tr = document.createElement('tr');
@@ -786,32 +765,42 @@
         const lessons = slotMap[key] || [];
 
         if (lessons.length === 0) {
-          td.className = 'timetable-cell is-empty';
-          td.innerHTML = `<span style="color: var(--text-muted); font-size: 0.75rem;">—</span>`;
+          td.className = 'timetable-cell my-tt-cell is-empty';
+          td.innerHTML = `
+            <button type="button" class="my-tt-empty-btn" onclick="window.__openSlotPicker('${day}', ${slot.id})">
+              <span style="font-size: 1.1rem; line-height: 1;">＋</span>
+              <span>科目を追加</span>
+            </button>
+          `;
         } else {
           td.className = 'timetable-cell my-tt-cell';
           const isConflict = lessons.length > 1;
 
-          td.innerHTML = lessons.map(l => {
-            const cleanId = (l.id || '').trim().startsWith('G') ? l.id : `G${l.id}`;
-            const syllabusUrl = `https://www.nara-edu.ac.jp/ADMIN/KYOUMU/SYLLABUS/syllabus/2026/detail/2026_01_${cleanId}.html`;
-
+          let cardsHtml = lessons.map(l => {
             return `
               <div class="my-lesson-card ${isConflict ? 'is-conflict' : ''}">
                 <div class="my-lesson-title" onclick="window.__showLessonById('${escapeHtml(l.id)}')">
                   ${isConflict ? '⚠️ ' : ''}${escapeHtml(l.name)}
                 </div>
                 <div class="my-lesson-details">
-                  <span>🏢 ${escapeHtml((l.rooms || []).join(', ') || '未定')}</span>
-                  <span>👨‍🏫 ${escapeHtml(l.teacher || '')} (${escapeHtml(l.credit || '-')}単位)</span>
+                  <span>🏢 ${escapeHtml((l.rooms || []).join(', ') || '教室未定')}</span>
+                  <span>👨‍🏫 ${escapeHtml(l.teacher || '')}</span>
                 </div>
                 <div class="my-lesson-actions">
-                  <a href="${escapeHtml(syllabusUrl)}" target="_blank" rel="noopener noreferrer" style="font-size: 0.725rem; color: var(--primary);">シラバス ↗</a>
+                  <span style="font-size: 0.725rem; color: var(--text-muted);">${escapeHtml(l.id)}</span>
                   <button type="button" class="my-del-btn" onclick="window.__toggleMyLesson('${escapeHtml(l.id)}', event)">🗑️ 削除</button>
                 </div>
               </div>
             `;
           }).join('');
+
+          cardsHtml += `
+            <button type="button" class="my-tt-add-more-btn" onclick="window.__openSlotPicker('${day}', ${slot.id})">
+              ＋ 科目をさらに追加
+            </button>
+          `;
+
+          td.innerHTML = cardsHtml;
         }
 
         tr.appendChild(td);
@@ -827,9 +816,6 @@
         dom.mySpecialList.innerHTML = `<div class="empty-hint">集中講義などの登録科目はありません。</div>`;
       } else {
         dom.mySpecialList.innerHTML = specialLessons.map(l => {
-          const cleanId = (l.id || '').trim().startsWith('G') ? l.id : `G${l.id}`;
-          const syllabusUrl = `https://www.nara-edu.ac.jp/ADMIN/KYOUMU/SYLLABUS/syllabus/2026/detail/2026_01_${cleanId}.html`;
-
           return `
             <div class="card my-lesson-card" style="margin: 0;">
               <div class="my-lesson-title" onclick="window.__showLessonById('${escapeHtml(l.id)}')">
@@ -840,7 +826,7 @@
                 <span>担当: ${escapeHtml(l.teacher || '未定')}</span>
               </div>
               <div class="my-lesson-actions" style="margin-top: 8px;">
-                <a href="${escapeHtml(syllabusUrl)}" target="_blank" rel="noopener noreferrer" style="font-size: 0.75rem; color: var(--primary);">シラバス ↗</a>
+                <span style="font-size: 0.75rem; color: var(--text-muted);">${escapeHtml(l.id)}</span>
                 <button type="button" class="my-del-btn" onclick="window.__toggleMyLesson('${escapeHtml(l.id)}', event)">🗑️ 削除</button>
               </div>
             </div>
@@ -849,6 +835,91 @@
       }
     }
   }
+
+  // ----------------------------------------------------
+  // モーダル: コマから科目を選択・追加 (Slot Picker)
+  // ----------------------------------------------------
+  window.__openSlotPicker = function (day, slotId) {
+    state.activeSlotPicker = { day, slotId };
+    if (!dom.slotPickerModal || !dom.slotPickerTitle || !dom.slotPickerList) return;
+
+    const currentSem = state.mySemester;
+    dom.slotPickerTitle.textContent = `${currentSem} / ${day}曜 ${getSlotName(slotId)}`;
+    if (dom.slotPickerSubtitle) {
+      dom.slotPickerSubtitle.textContent = `この日時に開講されている科目から選択して時間割に追加できます`;
+    }
+
+    if (dom.slotPickerSearch) {
+      dom.slotPickerSearch.value = '';
+    }
+
+    renderSlotPickerList();
+    dom.slotPickerModal.classList.add('show');
+  };
+
+  function renderSlotPickerList() {
+    if (!state.activeSlotPicker || !dom.slotPickerList) return;
+    const { day, slotId } = state.activeSlotPicker;
+    const currentSem = state.mySemester;
+    const query = dom.slotPickerSearch ? dom.slotPickerSearch.value.trim().toLowerCase() : '';
+
+    // 該当する講義を抽出
+    let availableLessons = DATA.lessons.filter(l => {
+      const semMatch = (l.semester === currentSem || l.semester === '通年');
+      if (!semMatch) return false;
+      if (l.day !== day) return false;
+      if (!l.slots || !l.slots.includes(slotId)) return false;
+
+      if (query) {
+        const words = query.split(/[\s\u3000]+/).filter(w => w.length > 0);
+        if (words.length > 0) {
+          const allMatch = words.every(w => {
+            return (l.name || '').toLowerCase().includes(w) ||
+                   (l.teacher || '').toLowerCase().includes(w) ||
+                   (l.rooms || []).some(r => r.toLowerCase().includes(w)) ||
+                   (l.id || '').toLowerCase().includes(w);
+          });
+          if (!allMatch) return false;
+        }
+      }
+
+      return true;
+    });
+
+    if (availableLessons.length === 0) {
+      dom.slotPickerList.innerHTML = `<div class="empty-hint" style="text-align: center; padding: 24px;">この時間帯に該当する科目が見つかりません。</div>`;
+      return;
+    }
+
+    const currentMyIds = state.myTimetable[currentSem] || [];
+
+    dom.slotPickerList.innerHTML = availableLessons.map(l => {
+      const isAdded = currentMyIds.includes(l.id);
+
+      return `
+        <div class="slot-picker-item">
+          <div style="flex: 1; min-width: 0;">
+            <div style="font-weight: 700; color: #1e293b; font-size: 0.95rem; margin-bottom: 2px;">
+              ${escapeHtml(l.name)}
+            </div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary); display: flex; flex-wrap: wrap; gap: 8px;">
+              <span>🏢 ${escapeHtml((l.rooms || []).join(', ') || '教室未定')}</span>
+              <span>👨‍🏫 ${escapeHtml(l.teacher || '担当記載なし')}</span>
+              <span style="font-family: monospace; color: var(--text-muted);">${escapeHtml(l.id)}</span>
+            </div>
+          </div>
+          <button type="button" class="slot-picker-btn ${isAdded ? 'is-added' : ''}" onclick="window.__toggleAndRefreshSlotPicker('${escapeHtml(l.id)}')">
+            ${isAdded ? '✓ 登録中 (削除)' : '＋ 追加'}
+          </button>
+        </div>
+      `;
+    }).join('');
+  }
+
+  window.__toggleAndRefreshSlotPicker = function (lessonId) {
+    toggleLessonInMyTimetable(lessonId);
+    renderSlotPickerList();
+  };
 
   // ----------------------------------------------------
   // モーダル: 講義詳細
@@ -920,7 +991,7 @@
 
     document.getElementById('btn-modal-star').addEventListener('click', () => {
       toggleLessonInMyTimetable(lesson.id);
-      openLessonModal(lesson); // 再描画
+      openLessonModal(lesson);
     });
 
     document.getElementById('btn-modal-view-room').addEventListener('click', () => {
@@ -936,7 +1007,7 @@
   }
 
   // ----------------------------------------------------
-  // 「今すぐ使える教室」クイックジャンプ判定
+  // 「今すぐ使える教室」クイックジャンプ
   // ----------------------------------------------------
   function jumpToCurrentSlot() {
     const now = new Date();
@@ -989,7 +1060,6 @@
     });
   }
 
-  // タブ切り替え
   function switchTab(tabId) {
     state.currentTab = tabId;
     dom.navTabs.forEach(t => {
@@ -1007,10 +1077,9 @@
   }
 
   // ----------------------------------------------------
-  // イベントリスナーの登録
+  // イベントリスナー
   // ----------------------------------------------------
   function initEvents() {
-    // 学期切り替え
     dom.semBtns.forEach(btn => {
       btn.addEventListener('click', () => {
         state.semester = btn.dataset.sem;
@@ -1021,14 +1090,12 @@
       });
     });
 
-    // ナビゲーションタブ
     dom.navTabs.forEach(tab => {
       tab.addEventListener('click', () => {
         switchTab(tab.dataset.tab);
       });
     });
 
-    // 曜日ボタン
     dom.dayBtns.forEach(btn => {
       btn.addEventListener('click', () => {
         state.day = btn.dataset.day;
@@ -1037,7 +1104,6 @@
       });
     });
 
-    // 時限スロットボタン
     dom.slotBtns.forEach(btn => {
       btn.addEventListener('click', () => {
         state.slot = parseInt(btn.dataset.slot, 10);
@@ -1046,7 +1112,6 @@
       });
     });
 
-    // カテゴリフィルター
     if (dom.categoryFilter) {
       dom.categoryFilter.addEventListener('change', (e) => {
         state.category = e.target.value;
@@ -1054,7 +1119,6 @@
       });
     }
 
-    // 教室検索インプット
     if (dom.roomSearchInput) {
       dom.roomSearchInput.addEventListener('input', (e) => {
         state.searchQuery = e.target.value.trim();
@@ -1062,7 +1126,6 @@
       });
     }
 
-    // 使用中の教室も表示トグル
     if (dom.showOccupiedToggle) {
       dom.showOccupiedToggle.addEventListener('change', (e) => {
         state.showOccupied = e.target.checked;
@@ -1070,7 +1133,6 @@
       });
     }
 
-    // 「今すぐ使える教室」ボタン
     if (dom.btnNow) {
       dom.btnNow.addEventListener('click', jumpToCurrentSlot);
     }
@@ -1080,11 +1142,12 @@
       btn.addEventListener('click', () => {
         if (dom.lessonModal) dom.lessonModal.classList.remove('show');
         if (dom.lessonSelectModal) dom.lessonSelectModal.classList.remove('show');
+        if (dom.slotPickerModal) dom.slotPickerModal.classList.remove('show');
       });
     });
 
     // モーダル背景クリック
-    [dom.lessonModal, dom.lessonSelectModal].forEach(modal => {
+    [dom.lessonModal, dom.lessonSelectModal, dom.slotPickerModal].forEach(modal => {
       if (modal) {
         modal.addEventListener('click', (e) => {
           if (e.target === modal) {
@@ -1094,7 +1157,6 @@
       }
     });
 
-    // タイムテーブル教室セレクト
     if (dom.timetableRoomSelect) {
       dom.timetableRoomSelect.addEventListener('change', (e) => {
         state.selectedRoom = e.target.value;
@@ -1102,7 +1164,6 @@
       });
     }
 
-    // マトリクスカテゴリセレクト
     if (dom.matrixCategorySelect) {
       dom.matrixCategorySelect.addEventListener('change', (e) => {
         state.matrixCategory = e.target.value;
@@ -1113,17 +1174,18 @@
     // --- 科目全件検索イベント ---
     if (dom.lessonSearchInput) {
       dom.lessonSearchInput.addEventListener('input', (e) => {
-        state.lessonFilter.q = e.target.value.trim();
+        state.lessonFilter.q = e.target.value;
         renderLessonsTab();
       });
     }
 
-    if (dom.lessonSemSelect) {
-      dom.lessonSemSelect.addEventListener('change', (e) => {
-        state.lessonFilter.sem = e.target.value;
+    // 学期チップ選択
+    dom.lessonSemBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.lessonFilter.sem = btn.dataset.sem;
         renderLessonsTab();
       });
-    }
+    });
 
     if (dom.lessonDaySelect) {
       dom.lessonDaySelect.addEventListener('change', (e) => {
@@ -1150,7 +1212,6 @@
       dom.btnLessonClear.addEventListener('click', () => {
         state.lessonFilter = { q: '', sem: 'all', day: 'all', slot: 'all', cat: 'all' };
         if (dom.lessonSearchInput) dom.lessonSearchInput.value = '';
-        if (dom.lessonSemSelect) dom.lessonSemSelect.value = 'all';
         if (dom.lessonDaySelect) dom.lessonDaySelect.value = 'all';
         if (dom.lessonSlotSelect) dom.lessonSlotSelect.value = 'all';
         if (dom.lessonCatSelect) dom.lessonCatSelect.value = 'all';
@@ -1159,10 +1220,12 @@
       });
     }
 
-    // テーブルソートイベント
+    // テーブルソート（時間割番号、曜日時限のみ）
     document.querySelectorAll('.sortable-th').forEach(th => {
       th.addEventListener('click', () => {
         const field = th.dataset.sort;
+        if (field !== 'id' && field !== 'daySlot') return;
+
         if (state.lessonSort.field === field) {
           state.lessonSort.order = (state.lessonSort.order === 'asc') ? 'desc' : 'asc';
         } else {
@@ -1172,6 +1235,13 @@
         renderLessonsTab();
       });
     });
+
+    // スロットピッカーのリアルタイム検索
+    if (dom.slotPickerSearch) {
+      dom.slotPickerSearch.addEventListener('input', () => {
+        renderSlotPickerList();
+      });
+    }
 
     // --- My時間割イベント ---
     dom.mySemBtns.forEach(btn => {
@@ -1199,7 +1269,6 @@
   // 初期化
   // ----------------------------------------------------
   function init() {
-    // 教室セレクトボックスの構築
     if (dom.timetableRoomSelect) {
       dom.timetableRoomSelect.innerHTML = '';
       DATA.rooms.forEach(room => {
@@ -1210,7 +1279,6 @@
       });
     }
 
-    // クイック教室チップの構築
     if (dom.quickRoomChips) {
       dom.quickRoomChips.innerHTML = '';
       POPULAR_ROOMS.forEach(rName => {
@@ -1230,17 +1298,14 @@
       });
     }
 
-    // My時間割をLocalStorageからロード
     loadMyTimetable();
 
-    // 初期学期を「前期」に明示設定
     state.semester = '前期';
     state.mySemester = '前期';
 
     updateUISelectors();
     initEvents();
 
-    // 初回レンダリング
     renderFreeRoomsTab();
     renderTimetableTab();
     renderMatrixTab();
