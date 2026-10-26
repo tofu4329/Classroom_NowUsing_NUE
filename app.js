@@ -3,6 +3,32 @@
  * Application Logic
  */
 
+// =========================================================================
+// ⚙️ 【ユーザー設定】単位数上限（CAP制）対象外科目の設定
+// ここに時間割番号や科目名、除外ルールを追加・編集できます
+// =========================================================================
+window.CAP_EXEMPT_CONFIG = {
+  // ① 時間割番号で指定（完全一致）
+  // 例: ['G0106', 'G0603']
+  lessonIds: [
+    // ここに除外したい時間割番号を追加できます（例: 'G0001', 'G0002'）
+  ],
+
+  // ② 科目名に含まれるキーワードで指定（部分一致）
+  // 例: ['教職', '集中']
+  nameKeywords: [
+    // ここにキーワードを追加できます（例: '卒業研究', '教職実践'）
+  ],
+
+  // ③ カスタム判定ルール（関数）
+  // 自由な条件判定を記述できます。trueを返すとCAP対象外（上限に含めない）になります。
+  customRule: function (lesson) {
+    // 例: 集中講義をすべてCAP対象外にする場合
+    // if (lesson.day === '集中') return true;
+    return false;
+  }
+};
+
 (function () {
   'use strict';
 
@@ -30,8 +56,18 @@
     }
   });
 
+  // CAP対象外科目かどうかを判定する関数
+  function isCapExempt(lesson) {
+    if (!lesson) return false;
+    const cfg = window.CAP_EXEMPT_CONFIG || {};
+    if (cfg.lessonIds && Array.isArray(cfg.lessonIds) && cfg.lessonIds.includes(lesson.id)) return true;
+    if (cfg.nameKeywords && Array.isArray(cfg.nameKeywords) && cfg.nameKeywords.some(kw => (lesson.name || '').includes(kw))) return true;
+    if (typeof cfg.customRule === 'function' && cfg.customRule(lesson)) return true;
+    return false;
+  }
+
   // LocalStorage キー
-  const STORAGE_KEY = 'nara_edu_my_timetable_v1';
+  const STORAGE_KEY = 'nara_edu_my_timetable_v2';
 
   // 曜日の順序マップ
   const DAY_ORDER_MAP = { '月': 1, '火': 2, '水': 3, '木': 4, '金': 5, '集中': 6 };
@@ -67,8 +103,12 @@
       '前期': [],
       '後期': []
     },
+    conflictAck: {
+      '前期': false,
+      '後期': false
+    },
+    currentConflicts: {},
 
-    // スロットピッカーモーダルの現在選択コンテキスト
     activeSlotPicker: null
   };
 
@@ -106,6 +146,10 @@
     slotPickerSearch: document.getElementById('slot-picker-search'),
     slotPickerList: document.getElementById('slot-picker-list'),
 
+    conflictDetailsModal: document.getElementById('conflict-details-modal'),
+    conflictDetailsList: document.getElementById('conflict-details-list'),
+    btnModalConflictToggle: document.getElementById('btn-modal-conflict-toggle'),
+
     // タイムテーブル
     timetableRoomSelect: document.getElementById('timetable-room-select'),
     quickRoomChips: document.getElementById('quick-room-chips'),
@@ -133,8 +177,17 @@
     myBadgeCount: document.getElementById('my-badge-count'),
     mySemBtns: document.querySelectorAll('.my-sem-btn'),
     myStatCount: document.getElementById('my-stat-count'),
-    myStatCredits: document.getElementById('my-stat-credits'),
+    myStatCreditsCap: document.getElementById('my-stat-credits-cap'),
+    myStatCreditsTotal: document.getElementById('my-stat-credits-total'),
+    myYearCreditsCap: document.getElementById('my-year-credits-cap'),
+    myYearCreditsTotal: document.getElementById('my-year-credits-total'),
+
     myConflictAlert: document.getElementById('my-conflict-alert'),
+    conflictAlertIcon: document.getElementById('conflict-alert-icon'),
+    conflictAlertText: document.getElementById('conflict-alert-text'),
+    btnConflictDetails: document.getElementById('btn-conflict-details'),
+    btnConflictAck: document.getElementById('btn-conflict-ack'),
+
     btnClearMyTimetable: document.getElementById('btn-clear-my-timetable'),
     myTimetableTbody: document.getElementById('my-timetable-tbody'),
     mySpecialCount: document.getElementById('my-special-count'),
@@ -152,8 +205,12 @@
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed && typeof parsed === 'object') {
-          state.myTimetable['前期'] = Array.isArray(parsed['前期']) ? parsed['前期'] : [];
-          state.myTimetable['後期'] = Array.isArray(parsed['後期']) ? parsed['後期'] : [];
+          state.myTimetable['前期'] = Array.isArray(parsed.timetable?.['前期']) ? parsed.timetable['前期'] : [];
+          state.myTimetable['後期'] = Array.isArray(parsed.timetable?.['後期']) ? parsed.timetable['後期'] : [];
+          if (parsed.conflictAck) {
+            state.conflictAck['前期'] = !!parsed.conflictAck['前期'];
+            state.conflictAck['後期'] = !!parsed.conflictAck['後期'];
+          }
         }
       }
     } catch (e) {
@@ -164,7 +221,11 @@
 
   function saveMyTimetable() {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state.myTimetable));
+      const toSave = {
+        timetable: state.myTimetable,
+        conflictAck: state.conflictAck
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
     } catch (e) {
       console.warn('My時間割の保存に失敗しました:', e);
     }
@@ -533,7 +594,7 @@
     openLessonSelectModal(roomName, day, slotId, occ);
   };
 
-  // 複数科目選択モーダル (元のシンプル構成 + 各科目の枠囲い)
+  // 複数科目選択モーダル (シンプル構成 + 各科目の枠囲い)
   function openLessonSelectModal(roomName, day, slotId, lessons) {
     if (!dom.lessonSelectModal || !dom.modalSelectTitle || !dom.modalSelectList) return;
 
@@ -576,23 +637,19 @@
 
     // フィルタリング
     let filtered = DATA.lessons.filter(l => {
-      // 学期 (チップ選択)
       if (f.sem !== 'all') {
         if (f.sem === '前期' && l.semester !== '前期' && l.semester !== '通年') return false;
         if (f.sem === '後期' && l.semester !== '後期' && l.semester !== '通年') return false;
         if (f.sem === '通年' && l.semester !== '通年') return false;
       }
 
-      // 曜日
       if (f.day !== 'all' && l.day !== f.day) return false;
 
-      // 時限
       if (f.slot !== 'all') {
         const slotNum = parseInt(f.slot, 10);
         if (!l.slots || !l.slots.includes(slotNum)) return false;
       }
 
-      // 教室区分
       if (f.cat !== 'all') {
         if (f.cat === 'online') {
           const hasOnline = (l.rooms || []).includes('オンライン') || (l.name || '').includes('オンライン');
@@ -606,7 +663,7 @@
         }
       }
 
-      // AND検索対応 (全角半角スペースで分割し、全ワードに合致)
+      // AND検索対応 (全角半角スペース区切りで全語を含む)
       if (q) {
         const words = q.split(/[\s\u3000]+/).filter(w => w.length > 0);
         if (words.length > 0) {
@@ -630,7 +687,6 @@
 
     filtered.sort((a, b) => {
       if (sortField === 'daySlot') {
-        // 曜日・時限の正しい順序（月1~5 -> 火1~5 -> ... -> 金1~5 -> 集中）
         const dScoreA = DAY_ORDER_MAP[a.day] || 9;
         const sScoreA = (a.slots && a.slots.length > 0) ? a.slots[0] : (a.day === '集中' ? 98 : 99);
         const scoreA = dScoreA * 100 + sScoreA;
@@ -641,18 +697,15 @@
 
         return (scoreA - scoreB) * sortOrder;
       } else {
-        // 'id' (時間割番号)
         const idA = a.id || '';
         const idB = b.id || '';
         return idA.localeCompare(idB, 'ja') * sortOrder;
       }
     });
 
-    // 件数更新
     if (dom.lessonResultsCount) dom.lessonResultsCount.textContent = filtered.length;
     if (dom.lessonTotalCount) dom.lessonTotalCount.textContent = DATA.lessons.length;
 
-    // ソートヘッダーのアイコン更新
     document.querySelectorAll('.sortable-th').forEach(th => {
       const field = th.dataset.sort;
       const isActive = (field === state.lessonSort.field);
@@ -667,12 +720,10 @@
       }
     });
 
-    // 学期チップのUI更新
     dom.lessonSemBtns.forEach(btn => {
       btn.classList.toggle('active', btn.dataset.sem === state.lessonFilter.sem);
     });
 
-    // テーブル生成 (シラバス列・単位数列は削除)
     let rowsHtml = '';
     const myLessonsPre = state.myTimetable['前期'] || [];
     const myLessonsPost = state.myTimetable['後期'] || [];
@@ -708,6 +759,19 @@
   // ----------------------------------------------------
   // レンダリング: My時間割 (TAB 5)
   // ----------------------------------------------------
+  function calcCredits(lessons) {
+    let cap = 0;
+    let total = 0;
+    lessons.forEach(l => {
+      const cr = parseFloat(l.credit) || 0;
+      total += cr;
+      if (!isCapExempt(l)) {
+        cap += cr;
+      }
+    });
+    return { cap, total };
+  }
+
   function renderMyTimetableTab() {
     if (!dom.myTimetableTbody) return;
 
@@ -715,21 +779,33 @@
     const lessonIds = state.myTimetable[currentSem] || [];
     const registeredLessons = lessonIds.map(id => DATA.lessons.find(l => l.id === id)).filter(Boolean);
 
-    let totalCredits = 0;
-    registeredLessons.forEach(l => {
-      totalCredits += (parseFloat(l.credit) || 0);
-    });
-
+    // 1. 学期内単位の集計 (CAP対象単位数 / 総単位数)
+    const semCredits = calcCredits(registeredLessons);
     if (dom.myStatCount) dom.myStatCount.textContent = registeredLessons.length;
-    if (dom.myStatCredits) dom.myStatCredits.textContent = totalCredits;
+    if (dom.myStatCreditsCap) dom.myStatCreditsCap.textContent = semCredits.cap;
+    if (dom.myStatCreditsTotal) dom.myStatCreditsTotal.textContent = semCredits.total;
 
+    // 2. 年間合計（通年）の集計
+    // 前期登録分 + 後期登録分（通年科目など同一科目が両学期にあっても1回だけ集計）
+    const allYearIds = Array.from(new Set([
+      ...(state.myTimetable['前期'] || []),
+      ...(state.myTimetable['後期'] || [])
+    ]));
+    const allYearLessons = allYearIds.map(id => DATA.lessons.find(l => l.id === id)).filter(Boolean);
+    const yearCredits = calcCredits(allYearLessons);
+
+    if (dom.myYearCreditsCap) dom.myYearCreditsCap.textContent = yearCredits.cap;
+    if (dom.myYearCreditsTotal) dom.myYearCreditsTotal.textContent = yearCredits.total;
+
+    // 学期切り替えボタンのUI更新
     dom.mySemBtns.forEach(btn => {
       btn.classList.toggle('active', btn.dataset.mySem === currentSem);
     });
 
+    // スロット配置の辞書作成 & 重複検出
     const slotMap = {};
     const specialLessons = [];
-    let hasConflict = false;
+    const conflictGroups = {}; // key -> [lessons]
 
     registeredLessons.forEach(l => {
       if (l.day === '集中' || !l.slots || l.slots.length === 0) {
@@ -740,17 +816,38 @@
           if (!slotMap[key]) slotMap[key] = [];
           slotMap[key].push(l);
           if (slotMap[key].length > 1) {
-            hasConflict = true;
+            conflictGroups[key] = slotMap[key];
           }
         });
       }
     });
 
+    state.currentConflicts = conflictGroups;
+    const conflictCount = Object.keys(conflictGroups).length;
+    const isConflict = conflictCount > 0;
+    const isAck = !!state.conflictAck[currentSem];
+
+    // 重複警告バーの更新
     if (dom.myConflictAlert) {
-      dom.myConflictAlert.style.display = hasConflict ? 'block' : 'none';
+      if (!isConflict) {
+        dom.myConflictAlert.style.display = 'none';
+      } else {
+        dom.myConflictAlert.style.display = 'block';
+        if (isAck) {
+          dom.myConflictAlert.classList.add('is-acknowledged');
+          if (dom.conflictAlertIcon) dom.conflictAlertIcon.textContent = '🟢';
+          if (dom.conflictAlertText) dom.conflictAlertText.innerHTML = `<strong>重複確認済み:</strong> ${conflictCount}箇所の重複を「問題なし（了解）」としています`;
+          if (dom.btnConflictAck) dom.btnConflictAck.textContent = '了解を取り消す';
+        } else {
+          dom.myConflictAlert.classList.remove('is-acknowledged');
+          if (dom.conflictAlertIcon) dom.conflictAlertIcon.textContent = '⚠️';
+          if (dom.conflictAlertText) dom.conflictAlertText.innerHTML = `<strong>重複警告:</strong> ${conflictCount}箇所のコマに複数の科目が登録されています！`;
+          if (dom.btnConflictAck) dom.btnConflictAck.textContent = '問題なし（重複を了解）';
+        }
+      }
     }
 
-    // テーブル生成 (空きコマをクリックすれば該当講義一覧から選べる)
+    // テーブル生成
     dom.myTimetableTbody.innerHTML = '';
     DATA.slots.forEach(slot => {
       const tr = document.createElement('tr');
@@ -774,13 +871,14 @@
           `;
         } else {
           td.className = 'timetable-cell my-tt-cell';
-          const isConflict = lessons.length > 1;
+          const hasSlotConflict = lessons.length > 1;
 
           let cardsHtml = lessons.map(l => {
+            const conflictClass = (hasSlotConflict && !isAck) ? 'is-conflict' : '';
             return `
-              <div class="my-lesson-card ${isConflict ? 'is-conflict' : ''}">
+              <div class="my-lesson-card ${conflictClass}">
                 <div class="my-lesson-title" onclick="window.__showLessonById('${escapeHtml(l.id)}')">
-                  ${isConflict ? '⚠️ ' : ''}${escapeHtml(l.name)}
+                  ${hasSlotConflict ? (isAck ? '🟢 ' : '⚠️ ') : ''}${escapeHtml(l.name)}
                 </div>
                 <div class="my-lesson-details">
                   <span>🏢 ${escapeHtml((l.rooms || []).join(', ') || '教室未定')}</span>
@@ -836,6 +934,71 @@
     }
   }
 
+  // 重複詳細モーダルを開く
+  function openConflictDetailsModal() {
+    if (!dom.conflictDetailsModal || !dom.conflictDetailsList) return;
+
+    const currentSem = state.mySemester;
+    const groups = state.currentConflicts || {};
+    const keys = Object.keys(groups);
+
+    if (keys.length === 0) {
+      dom.conflictDetailsList.innerHTML = `<div class="empty-hint" style="text-align: center; padding: 20px;">現在重複しているコマはありません。</div>`;
+    } else {
+      dom.conflictDetailsList.innerHTML = keys.map(key => {
+        const [day, slotId] = key.split('_');
+        const slotObj = DATA.slots.find(s => s.id === parseInt(slotId, 10));
+        const slotName = slotObj ? `${slotObj.name} (${slotObj.time})` : `${slotId}コマ目`;
+        const lessons = groups[key];
+
+        const lessonsHtml = lessons.map(l => `
+          <div class="conflict-lesson-item">
+            <div style="font-weight: 700; color: #1e293b;">${escapeHtml(l.name)}</div>
+            <div style="font-size: 0.775rem; color: var(--text-secondary); margin-top: 2px;">
+              時間割番号: ${escapeHtml(l.id)} | 担当: ${escapeHtml(l.teacher || '未定')} | 教室: ${escapeHtml((l.rooms || []).join(', ') || '未定')}
+            </div>
+          </div>
+        `).join('');
+
+        return `
+          <div class="conflict-group-box">
+            <div class="conflict-group-title">
+              <span>📅 ${escapeHtml(day)}曜日 ${escapeHtml(slotName)}</span>
+              <span class="badge" style="background: #fee2e2; color: #b91c1c;">${lessons.length}科目重複</span>
+            </div>
+            ${lessonsHtml}
+          </div>
+        `;
+      }).join('');
+    }
+
+    const isAck = !!state.conflictAck[currentSem];
+    if (dom.btnModalConflictToggle) {
+      dom.btnModalConflictToggle.textContent = isAck ? '重複の了解を取り消す（警告に戻す）' : 'この重複を問題なし（了解）にする';
+      dom.btnModalConflictToggle.className = isAck ? 'btn btn-outline text-danger' : 'btn btn-primary';
+    }
+
+    dom.conflictDetailsModal.classList.add('show');
+  }
+
+  // 重複の了解トグル
+  function toggleConflictAck() {
+    const sem = state.mySemester;
+    state.conflictAck[sem] = !state.conflictAck[sem];
+    saveMyTimetable();
+    renderMyTimetableTab();
+
+    if (state.conflictAck[sem]) {
+      showToast(`${sem}の重複を「問題なし（了解）」として登録しました`);
+    } else {
+      showToast(`${sem}の重複警告を再度有効にしました`);
+    }
+
+    if (dom.conflictDetailsModal && dom.conflictDetailsModal.classList.contains('show')) {
+      openConflictDetailsModal();
+    }
+  }
+
   // ----------------------------------------------------
   // モーダル: コマから科目を選択・追加 (Slot Picker)
   // ----------------------------------------------------
@@ -863,7 +1026,6 @@
     const currentSem = state.mySemester;
     const query = dom.slotPickerSearch ? dom.slotPickerSearch.value.trim().toLowerCase() : '';
 
-    // 該当する講義を抽出
     let availableLessons = DATA.lessons.filter(l => {
       const semMatch = (l.semester === currentSem || l.semester === '通年');
       if (!semMatch) return false;
@@ -1143,11 +1305,12 @@
         if (dom.lessonModal) dom.lessonModal.classList.remove('show');
         if (dom.lessonSelectModal) dom.lessonSelectModal.classList.remove('show');
         if (dom.slotPickerModal) dom.slotPickerModal.classList.remove('show');
+        if (dom.conflictDetailsModal) dom.conflictDetailsModal.classList.remove('show');
       });
     });
 
     // モーダル背景クリック
-    [dom.lessonModal, dom.lessonSelectModal, dom.slotPickerModal].forEach(modal => {
+    [dom.lessonModal, dom.lessonSelectModal, dom.slotPickerModal, dom.conflictDetailsModal].forEach(modal => {
       if (modal) {
         modal.addEventListener('click', (e) => {
           if (e.target === modal) {
@@ -1179,7 +1342,6 @@
       });
     }
 
-    // 学期チップ選択
     dom.lessonSemBtns.forEach(btn => {
       btn.addEventListener('click', () => {
         state.lessonFilter.sem = btn.dataset.sem;
@@ -1220,7 +1382,6 @@
       });
     }
 
-    // テーブルソート（時間割番号、曜日時限のみ）
     document.querySelectorAll('.sortable-th').forEach(th => {
       th.addEventListener('click', () => {
         const field = th.dataset.sort;
@@ -1236,7 +1397,6 @@
       });
     });
 
-    // スロットピッカーのリアルタイム検索
     if (dom.slotPickerSearch) {
       dom.slotPickerSearch.addEventListener('input', () => {
         renderSlotPickerList();
@@ -1256,12 +1416,28 @@
         const sem = state.mySemester;
         if (confirm(`本当に${sem}のMy時間割をすべてリセットしますか？`)) {
           state.myTimetable[sem] = [];
+          state.conflictAck[sem] = false;
           saveMyTimetable();
           renderMyTimetableTab();
           renderLessonsTab();
           showToast(`${sem}のMy時間割をリセットしました`);
         }
       });
+    }
+
+    // 重複警告の「詳細を確認」ボタン
+    if (dom.btnConflictDetails) {
+      dom.btnConflictDetails.addEventListener('click', openConflictDetailsModal);
+    }
+
+    // 重複警告の「問題なし（重複を了解）」ボタン
+    if (dom.btnConflictAck) {
+      dom.btnConflictAck.addEventListener('click', toggleConflictAck);
+    }
+
+    // モーダル内の「この重複を了解する」ボタン
+    if (dom.btnModalConflictToggle) {
+      dom.btnModalConflictToggle.addEventListener('click', toggleConflictAck);
     }
   }
 

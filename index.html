@@ -326,10 +326,13 @@
 
           <div class="my-stats-group">
             <div class="my-stat-chip">
-              登録科目: <strong id="my-stat-count">0</strong> 科目
+              登録: <strong id="my-stat-count">0</strong> 科目
             </div>
-            <div class="my-stat-chip credit">
-              合計単位: <strong id="my-stat-credits">0</strong> 単位
+            <div class="my-stat-chip credit" title="CAP対象単位数 (対象外も含めた総単位数)">
+              学期CAP対象: <strong id="my-stat-credits-cap">0</strong> 単位 <span class="sub-credit">(総計: <span id="my-stat-credits-total">0</span>)</span>
+            </div>
+            <div class="my-stat-chip credit-year" title="年間(前期+後期+通年)の単位数">
+              年間CAP対象: <strong id="my-year-credits-cap">0</strong> 単位 <span class="sub-credit">(総計: <span id="my-year-credits-total">0</span>)</span>
             </div>
             <button type="button" id="btn-clear-my-timetable" class="btn btn-outline btn-sm text-danger">
               🗑️ 時間割をリセット
@@ -338,7 +341,20 @@
         </div>
 
         <div id="my-conflict-alert" class="conflict-alert" style="display: none;">
-          ⚠️ <strong>重複警告:</strong> 同じコマに複数の科目が登録されています！
+          <div class="conflict-alert-content">
+            <div class="conflict-alert-left">
+              <span id="conflict-alert-icon">⚠️</span>
+              <span id="conflict-alert-text"><strong>重複警告:</strong> 同じコマに複数の科目が登録されています</span>
+            </div>
+            <div class="conflict-alert-actions">
+              <button type="button" id="btn-conflict-details" class="btn-conflict-action">
+                詳細を確認
+              </button>
+              <button type="button" id="btn-conflict-ack" class="btn-conflict-action ack">
+                問題なし（重複を了解）
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -428,8 +444,31 @@
     </div>
   </div>
 
+  <!-- 重複詳細モーダル -->
+  <div id="conflict-details-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 600px;">
+      <div class="modal-header">
+        <h3 class="modal-title">⚠️ 重複している科目の一覧</h3>
+        <button type="button" class="modal-close-btn" aria-label="閉じる">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 10px;">
+          以下のコマで複数の科目が登録されています。隔週開講や日程違いなどで問題ない場合は「問題なし（了解）」に設定できます。
+        </p>
+        <div id="conflict-details-list" style="display: flex; flex-direction: column; gap: 12px; max-height: 50vh; overflow-y: auto;">
+          <!-- 動的生成 -->
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-color);">
+          <button type="button" id="btn-modal-conflict-toggle" class="btn btn-primary" style="font-size: 0.85rem;">
+            この重複を問題なし（了解）にする
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- データファイルとアプリケーションスクリプト (キャッシュバスター付き) -->
-  <script src="data.js?v=20261026_07"></script>
-  <script src="app.js?v=20261026_07"></script>
+  <script src="data.js?v=20261026_08"></script>
+  <script src="app.js?v=20261026_08"></script>
 </body>
 </html>
