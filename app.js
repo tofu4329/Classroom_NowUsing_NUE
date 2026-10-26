@@ -107,6 +107,10 @@ window.CAP_EXEMPT_CONFIG = {
       '前期': false,
       '後期': false
     },
+    conflictDismissed: {
+      '前期': false,
+      '後期': false
+    },
     currentConflicts: {},
 
     activeSlotPicker: null
@@ -187,6 +191,9 @@ window.CAP_EXEMPT_CONFIG = {
     conflictAlertText: document.getElementById('conflict-alert-text'),
     btnConflictDetails: document.getElementById('btn-conflict-details'),
     btnConflictAck: document.getElementById('btn-conflict-ack'),
+    btnDismissConflictBar: document.getElementById('btn-dismiss-conflict-bar'),
+    btnReopenConflict: document.getElementById('btn-reopen-conflict'),
+    btnAddSpecialLesson: document.getElementById('btn-add-special-lesson'),
 
     btnClearMyTimetable: document.getElementById('btn-clear-my-timetable'),
     myTimetableTbody: document.getElementById('my-timetable-tbody'),
@@ -211,6 +218,10 @@ window.CAP_EXEMPT_CONFIG = {
             state.conflictAck['前期'] = !!parsed.conflictAck['前期'];
             state.conflictAck['後期'] = !!parsed.conflictAck['後期'];
           }
+          if (parsed.conflictDismissed) {
+            state.conflictDismissed['前期'] = !!parsed.conflictDismissed['前期'];
+            state.conflictDismissed['後期'] = !!parsed.conflictDismissed['後期'];
+          }
         }
       }
     } catch (e) {
@@ -223,7 +234,8 @@ window.CAP_EXEMPT_CONFIG = {
     try {
       const toSave = {
         timetable: state.myTimetable,
-        conflictAck: state.conflictAck
+        conflictAck: state.conflictAck,
+        conflictDismissed: state.conflictDismissed
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
     } catch (e) {
@@ -826,23 +838,44 @@ window.CAP_EXEMPT_CONFIG = {
     const conflictCount = Object.keys(conflictGroups).length;
     const isConflict = conflictCount > 0;
     const isAck = !!state.conflictAck[currentSem];
+    const isDismissed = !!state.conflictDismissed[currentSem];
 
-    // 重複警告バーの更新
-    if (dom.myConflictAlert) {
-      if (!isConflict) {
-        dom.myConflictAlert.style.display = 'none';
+    // 重複警告バー & 再表示ボタンの更新
+    if (!isConflict) {
+      if (dom.myConflictAlert) dom.myConflictAlert.style.display = 'none';
+      if (dom.btnReopenConflict) dom.btnReopenConflict.style.display = 'none';
+      state.conflictAck[currentSem] = false;
+      state.conflictDismissed[currentSem] = false;
+    } else {
+      if (isDismissed) {
+        if (dom.myConflictAlert) dom.myConflictAlert.style.display = 'none';
+        if (dom.btnReopenConflict) {
+          dom.btnReopenConflict.style.display = 'inline-flex';
+          if (isAck) {
+            dom.btnReopenConflict.innerHTML = '🟢 重複確認済み (詳細)';
+            dom.btnReopenConflict.style.borderColor = '#86efac';
+            dom.btnReopenConflict.style.color = '#166534';
+            dom.btnReopenConflict.style.background = '#f0fdf4';
+          } else {
+            dom.btnReopenConflict.innerHTML = '⚠️ 重複あり (詳細)';
+            dom.btnReopenConflict.style.borderColor = '#f59e0b';
+            dom.btnReopenConflict.style.color = '#b45309';
+            dom.btnReopenConflict.style.background = '#fffbeb';
+          }
+        }
       } else {
-        dom.myConflictAlert.style.display = 'block';
-        if (isAck) {
-          dom.myConflictAlert.classList.add('is-acknowledged');
-          if (dom.conflictAlertIcon) dom.conflictAlertIcon.textContent = '🟢';
-          if (dom.conflictAlertText) dom.conflictAlertText.innerHTML = `<strong>重複確認済み:</strong> ${conflictCount}箇所の重複を「問題なし（了解）」としています`;
-          if (dom.btnConflictAck) dom.btnConflictAck.textContent = '了解を取り消す';
-        } else {
-          dom.myConflictAlert.classList.remove('is-acknowledged');
-          if (dom.conflictAlertIcon) dom.conflictAlertIcon.textContent = '⚠️';
-          if (dom.conflictAlertText) dom.conflictAlertText.innerHTML = `<strong>重複警告:</strong> ${conflictCount}箇所のコマに複数の科目が登録されています！`;
-          if (dom.btnConflictAck) dom.btnConflictAck.textContent = '問題なし（重複を了解）';
+        if (dom.btnReopenConflict) dom.btnReopenConflict.style.display = 'none';
+        if (dom.myConflictAlert) {
+          dom.myConflictAlert.style.display = 'block';
+          if (isAck) {
+            dom.myConflictAlert.classList.add('is-acknowledged');
+            if (dom.conflictAlertIcon) dom.conflictAlertIcon.textContent = '🟢';
+            if (dom.conflictAlertText) dom.conflictAlertText.innerHTML = `<strong>重複確認済み:</strong> ${conflictCount}箇所の重複を確認済みです`;
+          } else {
+            dom.myConflictAlert.classList.remove('is-acknowledged');
+            if (dom.conflictAlertIcon) dom.conflictAlertIcon.textContent = '⚠️';
+            if (dom.conflictAlertText) dom.conflictAlertText.innerHTML = `<strong>重複警告:</strong> ${conflictCount}箇所のコマに複数の科目が登録されています！`;
+          }
         }
       }
     }
@@ -974,27 +1007,35 @@ window.CAP_EXEMPT_CONFIG = {
 
     const isAck = !!state.conflictAck[currentSem];
     if (dom.btnModalConflictToggle) {
-      dom.btnModalConflictToggle.textContent = isAck ? '重複の了解を取り消す（警告に戻す）' : 'この重複を問題なし（了解）にする';
+      dom.btnModalConflictToggle.textContent = isAck ? '取消' : '確認';
       dom.btnModalConflictToggle.className = isAck ? 'btn btn-outline text-danger' : 'btn btn-primary';
     }
 
     dom.conflictDetailsModal.classList.add('show');
   }
 
-  // 重複の了解トグル
+  // 重複の確認／取消トグル
   function toggleConflictAck() {
     const sem = state.mySemester;
     state.conflictAck[sem] = !state.conflictAck[sem];
+
+    if (state.conflictAck[sem]) {
+      // 確認した後は警告バーを非表示にする（上部に再表示ボタンを配置）
+      state.conflictDismissed[sem] = true;
+      showToast(`${sem}の重複を確認しました（警告バーを非表示にしました）`);
+    } else {
+      // 取消した場合は警告バーを再表示する
+      state.conflictDismissed[sem] = false;
+      showToast(`${sem}の重複確認を取り消しました`);
+    }
+
     saveMyTimetable();
     renderMyTimetableTab();
 
-    if (state.conflictAck[sem]) {
-      showToast(`${sem}の重複を「問題なし（了解）」として登録しました`);
-    } else {
-      showToast(`${sem}の重複警告を再度有効にしました`);
-    }
-
     if (dom.conflictDetailsModal && dom.conflictDetailsModal.classList.contains('show')) {
+      openConflictDetailsModal();
+    }
+  }
       openConflictDetailsModal();
     }
   }
@@ -1020,8 +1061,28 @@ window.CAP_EXEMPT_CONFIG = {
     dom.slotPickerModal.classList.add('show');
   };
 
+  // 集中講義・コマ未定の科目追加モーダルを開く
+  window.__openSpecialLessonPicker = function () {
+    state.activeSlotPicker = { isSpecial: true };
+    if (!dom.slotPickerModal || !dom.slotPickerTitle || !dom.slotPickerList) return;
+
+    const currentSem = state.mySemester;
+    dom.slotPickerTitle.textContent = `${currentSem} / 集中講義・その他`;
+    if (dom.slotPickerSubtitle) {
+      dom.slotPickerSubtitle.textContent = `集中講義や開講日時がコマに指定されていない科目から選択して時間割に追加できます`;
+    }
+
+    if (dom.slotPickerSearch) {
+      dom.slotPickerSearch.value = '';
+    }
+
+    renderSlotPickerList();
+    dom.slotPickerModal.classList.add('show');
+  };
+
   function renderSlotPickerList() {
     if (!state.activeSlotPicker || !dom.slotPickerList) return;
+    const isSpecial = !!state.activeSlotPicker.isSpecial;
     const { day, slotId } = state.activeSlotPicker;
     const currentSem = state.mySemester;
     const query = dom.slotPickerSearch ? dom.slotPickerSearch.value.trim().toLowerCase() : '';
@@ -1029,8 +1090,14 @@ window.CAP_EXEMPT_CONFIG = {
     let availableLessons = DATA.lessons.filter(l => {
       const semMatch = (l.semester === currentSem || l.semester === '通年');
       if (!semMatch) return false;
-      if (l.day !== day) return false;
-      if (!l.slots || !l.slots.includes(slotId)) return false;
+
+      if (isSpecial) {
+        const isSpecialLesson = (l.day === '集中' || !l.slots || l.slots.length === 0);
+        if (!isSpecialLesson) return false;
+      } else {
+        if (l.day !== day) return false;
+        if (!l.slots || !l.slots.includes(slotId)) return false;
+      }
 
       if (query) {
         const words = query.split(/[\s\u3000]+/).filter(w => w.length > 0);
@@ -1049,7 +1116,7 @@ window.CAP_EXEMPT_CONFIG = {
     });
 
     if (availableLessons.length === 0) {
-      dom.slotPickerList.innerHTML = `<div class="empty-hint" style="text-align: center; padding: 24px;">この時間帯に該当する科目が見つかりません。</div>`;
+      dom.slotPickerList.innerHTML = `<div class="empty-hint" style="text-align: center; padding: 24px;">該当する科目が見つかりません。</div>`;
       return;
     }
 
@@ -1057,14 +1124,16 @@ window.CAP_EXEMPT_CONFIG = {
 
     dom.slotPickerList.innerHTML = availableLessons.map(l => {
       const isAdded = currentMyIds.includes(l.id);
+      const capTag = isCapExempt(l) ? '<span class="badge" style="background: #f1f5f9; color: #64748b; font-size: 0.7rem; margin-left: 4px;">CAP対象外</span>' : '';
 
       return `
         <div class="slot-picker-item">
           <div style="flex: 1; min-width: 0;">
             <div style="font-weight: 700; color: #1e293b; font-size: 0.95rem; margin-bottom: 2px;">
-              ${escapeHtml(l.name)}
+              ${escapeHtml(l.name)} ${capTag}
             </div>
             <div style="font-size: 0.8rem; color: var(--text-secondary); display: flex; flex-wrap: wrap; gap: 8px;">
+              <span>開講: ${escapeHtml(l.semester)} / ${escapeHtml(l.day || '')} (${escapeHtml(l.credit || '-')}単位)</span>
               <span>🏢 ${escapeHtml((l.rooms || []).join(', ') || '教室未定')}</span>
               <span>👨‍🏫 ${escapeHtml(l.teacher || '担当記載なし')}</span>
               <span style="font-family: monospace; color: var(--text-muted);">${escapeHtml(l.id)}</span>
@@ -1430,12 +1499,36 @@ window.CAP_EXEMPT_CONFIG = {
       dom.btnConflictDetails.addEventListener('click', openConflictDetailsModal);
     }
 
-    // 重複警告の「問題なし（重複を了解）」ボタン
+    // 重複警告バーの「×」閉じるボタン
+    if (dom.btnDismissConflictBar) {
+      dom.btnDismissConflictBar.addEventListener('click', () => {
+        state.conflictDismissed[state.mySemester] = true;
+        saveMyTimetable();
+        renderMyTimetableTab();
+        showToast('重複警告バーを非表示にしました（上のボタンからいつでも再確認できます）');
+      });
+    }
+
+    // 重複確認済み／非表示時の再表示ボタン
+    if (dom.btnReopenConflict) {
+      dom.btnReopenConflict.addEventListener('click', openConflictDetailsModal);
+    }
+
+    // 集中講義の追加ボタン
+    if (dom.btnAddSpecialLesson) {
+      dom.btnAddSpecialLesson.addEventListener('click', () => {
+        if (typeof window.__openSpecialLessonPicker === 'function') {
+          window.__openSpecialLessonPicker();
+        }
+      });
+    }
+
+    // 重複警告の「問題なし（重複を了解）」ボタン（旧互換）
     if (dom.btnConflictAck) {
       dom.btnConflictAck.addEventListener('click', toggleConflictAck);
     }
 
-    // モーダル内の「この重複を了解する」ボタン
+    // モーダル内の「確認／取消」ボタン
     if (dom.btnModalConflictToggle) {
       dom.btnModalConflictToggle.addEventListener('click', toggleConflictAck);
     }

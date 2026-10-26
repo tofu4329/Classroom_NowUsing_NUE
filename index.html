@@ -334,6 +334,10 @@
             <div class="my-stat-chip credit-year" title="年間(前期+後期+通年)の単位数">
               年間CAP対象: <strong id="my-year-credits-cap">0</strong> 単位 <span class="sub-credit">(総計: <span id="my-year-credits-total">0</span>)</span>
             </div>
+            <!-- 重複確認済み・非表示時の再表示ボタン -->
+            <button type="button" id="btn-reopen-conflict" class="btn btn-outline btn-sm" style="display: none; border-color: #f59e0b; color: #b45309; background: #fffbeb;">
+              ⚠️ 重複確認済み (詳細)
+            </button>
             <button type="button" id="btn-clear-my-timetable" class="btn btn-outline btn-sm text-danger">
               🗑️ 時間割をリセット
             </button>
@@ -350,8 +354,8 @@
               <button type="button" id="btn-conflict-details" class="btn-conflict-action">
                 詳細を確認
               </button>
-              <button type="button" id="btn-conflict-ack" class="btn-conflict-action ack">
-                問題なし（重複を了解）
+              <button type="button" id="btn-dismiss-conflict-bar" class="btn-conflict-action" style="background: transparent; border: none; font-size: 1.1rem; line-height: 1; padding: 2px 6px;" title="警告バーを閉じる">
+                &times;
               </button>
             </div>
           </div>
@@ -379,7 +383,12 @@
 
       <!-- 集中講義・その他登録リスト -->
       <div class="card my-special-lessons-card" id="my-special-lessons-card">
-        <h3 class="special-lessons-title">📌 集中講義・コマ未定の登録科目 (<span id="my-special-count">0</span>)</h3>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+          <h3 class="special-lessons-title" style="margin-bottom: 0;">📌 集中講義・コマ未定の登録科目 (<span id="my-special-count">0</span>)</h3>
+          <button type="button" id="btn-add-special-lesson" class="btn btn-outline btn-sm">
+            ＋ 集中講義を追加
+          </button>
+        </div>
         <div id="my-special-list" class="my-special-list">
           <div class="empty-hint">集中講義などの登録科目はありません。</div>
         </div>
@@ -460,7 +469,7 @@
         </div>
         <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-color);">
           <button type="button" id="btn-modal-conflict-toggle" class="btn btn-primary" style="font-size: 0.85rem;">
-            この重複を問題なし（了解）にする
+            確認
           </button>
         </div>
       </div>
@@ -468,7 +477,7 @@
   </div>
 
   <!-- データファイルとアプリケーションスクリプト (キャッシュバスター付き) -->
-  <script src="data.js?v=20261026_08"></script>
-  <script src="app.js?v=20261026_08"></script>
+  <script src="data.js?v=20261026_09"></script>
+  <script src="app.js?v=20261026_09"></script>
 </body>
 </html>
