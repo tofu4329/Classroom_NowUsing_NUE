@@ -1,0 +1,9 @@
+# 一時スクリプトやキャッシュ
+*.log
+summary.json
+test.ps1
+inspect_csv.ps1
+parse_rooms.ps1
+list_all_rooms.ps1
+analyze_json.ps1
+analyze.ps1

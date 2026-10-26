@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>奈良教育大学 空き教室・利用状況チェッカー</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Header -->
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="brand">
+        <div class="brand-icon">🏫</div>
+        <div>
+          <h1 class="brand-title">奈良教育大学 空き教室・利用状況チェッカー</h1>
+          <p class="brand-subtitle">シラバス時間割データからリアルタイムに教室状況を可視化</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <!-- 学期セレクター -->
+        <div class="semester-switch" role="group" aria-label="学期切替">
+          <button type="button" class="sem-btn active" data-sem="前期">前期</button>
+          <button type="button" class="sem-btn" data-sem="後期">後期</button>
+        </div>
+        <!-- 今すぐ使える教室ボタン -->
+        <button type="button" id="btn-now" class="btn btn-primary">
+          <span class="icon">⚡</span> 今すぐ使える教室
+        </button>
+        <!-- ネット公開ガイドボタン -->
+        <button type="button" id="btn-publish-guide" class="btn btn-outline" title="ネット上で公開する方法">
+          <span class="icon">🌐</span> ネット公開方法
+        </button>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <nav class="app-nav">
+      <button class="nav-tab active" data-tab="free-rooms">
+        <span class="tab-icon">🔍</span> 空き教室を探す
+      </button>
+      <button class="nav-tab" data-tab="timetable">
+        <span class="tab-icon">📅</span> 教室別タイムテーブル
+      </button>
+      <button class="nav-tab" data-tab="matrix">
+        <span class="tab-icon">📊</span> 全体稼働マトリクス
+      </button>
+      <button class="nav-tab" data-tab="lessons">
+        <span class="tab-icon">📖</span> 講義一覧・検索
+      </button>
+    </nav>
+  </header>
+
+  <main class="app-main">
+    <!-- ============================================== -->
+    <!-- TAB 1: 空き教室を探す (Find Free Rooms) -->
+    <!-- ============================================== -->
+    <section id="tab-free-rooms" class="tab-content active">
+      <!-- 絞り込みパネル -->
+      <div class="filter-panel card">
+        <div class="filter-group">
+          <label class="filter-label">曜日</label>
+          <div class="btn-group" id="day-selector">
+            <button type="button" class="pill-btn active" data-day="月">月</button>
+            <button type="button" class="pill-btn" data-day="火">火</button>
+            <button type="button" class="pill-btn" data-day="水">水</button>
+            <button type="button" class="pill-btn" data-day="木">木</button>
+            <button type="button" class="pill-btn" data-day="金">金</button>
+          </div>
+        </div>
+
+        <div class="filter-group">
+          <label class="filter-label">時限</label>
+          <div class="btn-group" id="slot-selector">
+            <button type="button" class="pill-btn active" data-slot="1">1・2限 <span class="slot-time">09:00~</span></button>
+            <button type="button" class="pill-btn" data-slot="2">3・4限 <span class="slot-time">10:40~</span></button>
+            <button type="button" class="pill-btn" data-slot="3">5・6限 <span class="slot-time">13:00~</span></button>
+            <button type="button" class="pill-btn" data-slot="4">7・8限 <span class="slot-time">14:40~</span></button>
+            <button type="button" class="pill-btn" data-slot="5">9・10限 <span class="slot-time">16:20~</span></button>
+          </div>
+        </div>
+
+        <div class="filter-row">
+          <div class="filter-group flex-1">
+            <label class="filter-label">教室区分</label>
+            <select id="category-filter" class="form-select">
+              <option value="all">すべての教室 (全90室)</option>
+              <option value="lecture" selected>🏢 一般講義室 (101~310・大講義室 等 28室)</option>
+              <option value="info">💻 情報センター</option>
+              <option value="lab">🔬 実験室・理科系</option>
+              <option value="art">🎨 美術・書道・実習室</option>
+              <option value="music">🎵 音楽棟</option>
+              <option value="sports">🏃 体育・運動施設</option>
+              <option value="other">📚 演習室・センター・他</option>
+            </select>
+          </div>
+
+          <div class="filter-group flex-1">
+            <label class="filter-label">教室名で絞り込み</label>
+            <input type="text" id="room-search-input" class="form-input" placeholder="例: 101, 講義室, 情報...">
+          </div>
+
+          <div class="filter-group align-end">
+            <label class="toggle-control">
+              <input type="checkbox" id="show-occupied-toggle" checked>
+              <span class="toggle-slider"></span>
+              <span class="toggle-text">使用中の教室も表示</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- サマリーステータスバー -->
+      <div class="status-summary-bar">
+        <div class="summary-chip free">
+          <span class="dot"></span> 空き教室: <strong id="count-free">0</strong> 室
+        </div>
+        <div class="summary-chip occupied">
+          <span class="dot"></span> 使用中: <strong id="count-occupied">0</strong> 室
+        </div>
+        <div class="summary-chip total">
+          該当合計: <strong id="count-total">0</strong> 室
+        </div>
+        <div class="summary-current-time" id="current-criteria-label">
+          前期 / 月曜日 / 1・2限
+        </div>
+      </div>
+
+      <!-- 教室カード一覧グリッド -->
+      <div id="rooms-grid" class="rooms-grid">
+        <!-- 動的レンダリング -->
+      </div>
+    </section>
+
+    <!-- ============================================== -->
+    <!-- TAB 2: 教室別タイムテーブル (Timetable) -->
+    <!-- ============================================== -->
+    <section id="tab-timetable" class="tab-content">
+      <div class="timetable-controls card">
+        <div class="control-row">
+          <div class="form-group flex-1">
+            <label class="filter-label">教室を選択</label>
+            <select id="timetable-room-select" class="form-select"></select>
+          </div>
+          <div class="form-group">
+            <label class="filter-label">クイック選択（主要一般教室）</label>
+            <div class="quick-room-chips" id="quick-room-chips">
+              <!-- JSで人気講義室を注入 -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="timetable-view-container card">
+        <div class="timetable-header">
+          <div>
+            <h2 id="timetable-room-name" class="timetable-title">101教室 の週間時間割</h2>
+            <span id="timetable-room-cat" class="badge">一般講義室</span>
+          </div>
+          <div class="legend">
+            <span class="legend-item"><span class="legend-box free"></span> 空きコマ</span>
+            <span class="legend-item"><span class="legend-box occupied"></span> 授業中</span>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="timetable-table" id="timetable-table">
+            <thead>
+              <tr>
+                <th>時限</th>
+                <th>月曜日</th>
+                <th>火曜日</th>
+                <th>水曜日</th>
+                <th>木曜日</th>
+                <th>金曜日</th>
+              </tr>
+            </thead>
+            <tbody id="timetable-tbody">
+              <!-- 動的生成 -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================== -->
+    <!-- TAB 3: 全体稼働マトリクス (Overall Matrix) -->
+    <!-- ============================================== -->
+    <section id="tab-matrix" class="tab-content">
+      <div class="card matrix-controls">
+        <div class="filter-row">
+          <div class="filter-group flex-1">
+            <label class="filter-label">表示する教室区分</label>
+            <select id="matrix-category-select" class="form-select">
+              <option value="lecture" selected>🏢 一般講義室 (28室)</option>
+              <option value="info">💻 情報センター</option>
+              <option value="lab">🔬 実験室・理科系</option>
+              <option value="art">🎨 美術・書道・実習室</option>
+              <option value="music">🎵 音楽棟</option>
+              <option value="sports">🏃 体育・運動施設</option>
+              <option value="other">📚 演習室・他</option>
+              <option value="all">すべての教室 (全90室)</option>
+            </select>
+          </div>
+          <div class="legend align-end">
+            <span class="legend-item"><span class="legend-box free"></span> 空き</span>
+            <span class="legend-item"><span class="legend-box occupied"></span> 使用中（講義名）</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card table-responsive matrix-container">
+        <table class="matrix-table" id="matrix-table">
+          <!-- JSでヘッダーとボディを生成 -->
+        </table>
+      </div>
+    </section>
+
+    <!-- ============================================== -->
+    <!-- TAB 4: 開講科目一覧・検索 (Lessons) -->
+    <!-- ============================================== -->
+    <section id="tab-lessons" class="tab-content">
+      <div class="card lesson-search-card">
+        <div class="filter-row">
+          <div class="filter-group flex-2">
+            <label class="filter-label">キーワード検索（科目名・担当教員・教室名）</label>
+            <input type="text" id="lesson-search-input" class="form-input" placeholder="例: 英語, 田中, 301, プログラミング...">
+          </div>
+          <div class="filter-group flex-1">
+            <label class="filter-label">曜日</label>
+            <select id="lesson-day-select" class="form-select">
+              <option value="all">すべての曜日</option>
+              <option value="月">月曜日</option>
+              <option value="火">火曜日</option>
+              <option value="水">水曜日</option>
+              <option value="木">木曜日</option>
+              <option value="金">金曜日</option>
+              <option value="集中">集中講義</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="lesson-results-count">
+        検索結果: <strong id="lesson-results-count">0</strong> 件
+      </div>
+
+      <div class="card table-responsive">
+        <table class="data-table" id="lessons-table">
+          <thead>
+            <tr>
+              <th>番号</th>
+              <th>学期</th>
+              <th>曜日・時限</th>
+              <th>科目名</th>
+              <th>教室</th>
+              <th>担当教員</th>
+              <th>単位</th>
+            </tr>
+          </thead>
+          <tbody id="lessons-tbody">
+            <!-- 動的生成 -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- 科目詳細モーダル -->
+  <div id="lesson-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modal-lesson-title" class="modal-title">科目名</h3>
+        <button type="button" class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body" id="modal-lesson-body">
+        <!-- 動的情報 -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ネット公開ガイドモーダル -->
+  <div id="publish-modal" class="modal-overlay">
+    <div class="modal-card publish-modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">🌐 ネット上で見られるようにする方法</h3>
+        <button type="button" class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="guide-intro">
+          このページは<strong>サーバー不要の静的Webサイト（HTML/CSS/JS）</strong>として完全完結しているため、以下のいずれかの方法で今すぐ無料でインターネット上に公開できます！
+        </p>
+
+        <div class="guide-steps">
+          <div class="step-card">
+            <div class="step-badge">方法 1（おすすめ・最短1分）</div>
+            <h4>Netlify Drop にドラッグ＆ドロップ</h4>
+            <ol>
+              <li>ブラウザで <a href="https://app.netlify.com/drop" target="_blank" rel="noopener">app.netlify.com/drop</a> を開きます。</li>
+              <li>このプロジェクトのフォルダ（<code>classroom-finder</code>）をそのまま画面にドラッグ＆ドロップします。</li>
+              <li>数秒で即座に公開URL（<code>https://xxxx.netlify.app</code>）が発行され、スマホやネット上から誰でも見られるようになります！</li>
+            </ol>
+          </div>
+
+          <div class="step-card">
+            <div class="step-badge">方法 2（公式・安定的）</div>
+            <h4>GitHub Pages で公開</h4>
+            <ol>
+              <li>GitHub で新しいリポジトリ（例: <code>nara-edu-classrooms</code>）を作成。</li>
+              <li>このフォルダ内のファイル（<code>index.html</code>, <code>style.css</code>, <code>app.js</code>, <code>data.js</code>）をアップロード。</li>
+              <li>リポジトリの <strong>Settings → Pages</strong> で <code>Branch: main</code> を選んで保存。</li>
+              <li><code>https://あなたのID.github.io/nara-edu-classrooms/</code> で全世界に公開されます！</li>
+            </ol>
+          </div>
+
+          <div class="step-card">
+            <div class="step-badge">方法 3（学内・個人のみ）</div>
+            <h4>OneDrive / ローカルでそのまま開く</h4>
+            <p>
+              このフォルダ内の <code>index.html</code> をダブルクリックするだけで、Google ChromeやEdgeなどのブラウザですぐに完全動作します。
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- データファイルとアプリケーションスクリプト -->
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
