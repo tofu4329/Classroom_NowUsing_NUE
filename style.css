@@ -815,10 +815,6 @@ body {
   animation: modalIn 0.2s ease-out;
 }
 
-.publish-modal-card {
-  max-width: 720px;
-}
-
 @keyframes modalIn {
   from { opacity: 0; transform: scale(0.95); }
   to { opacity: 1; transform: scale(1); }
@@ -891,61 +887,6 @@ body {
   font-size: 0.875rem;
   white-space: pre-wrap;
   line-height: 1.6;
-}
-
-/* Publish Guide Styling */
-.guide-intro {
-  font-size: 0.95rem;
-  color: var(--text-secondary);
-  line-height: 1.6;
-}
-
-.guide-steps {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.step-card {
-  background: #f8fafc;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  padding: 16px;
-}
-
-.step-badge {
-  display: inline-block;
-  padding: 2px 8px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  border-radius: 9999px;
-  background: var(--primary-light);
-  color: var(--primary);
-  margin-bottom: 8px;
-}
-
-.step-card h4 {
-  font-size: 1rem;
-  font-weight: 700;
-  margin-bottom: 8px;
-  color: #1e293b;
-}
-
-.step-card ol {
-  padding-left: 20px;
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.step-card code {
-  background: #e2e8f0;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-family: monospace;
-  font-size: 0.825rem;
 }
 
 /* Responsive adjustments */

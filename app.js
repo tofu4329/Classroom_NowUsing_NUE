@@ -61,8 +61,6 @@
     countTotal: document.getElementById('count-total'),
     currentCriteriaLabel: document.getElementById('current-criteria-label'),
     btnNow: document.getElementById('btn-now'),
-    btnPublishGuide: document.getElementById('btn-publish-guide'),
-    publishModal: document.getElementById('publish-modal'),
     lessonModal: document.getElementById('lesson-modal'),
     modalLessonTitle: document.getElementById('modal-lesson-title'),
     modalLessonBody: document.getElementById('modal-lesson-body'),
@@ -681,31 +679,21 @@
       dom.btnNow.addEventListener('click', jumpToCurrentSlot);
     }
 
-    // ネット公開ガイドモーダル
-    if (dom.btnPublishGuide) {
-      dom.btnPublishGuide.addEventListener('click', () => {
-        if (dom.publishModal) dom.publishModal.classList.add('show');
-      });
-    }
-
     // モーダル閉じるボタン
     document.querySelectorAll('.modal-close-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        if (dom.publishModal) dom.publishModal.classList.remove('show');
         if (dom.lessonModal) dom.lessonModal.classList.remove('show');
       });
     });
 
     // モーダル背景クリック
-    [dom.publishModal, dom.lessonModal].forEach(modal => {
-      if (modal) {
-        modal.addEventListener('click', (e) => {
-          if (e.target === modal) {
-            modal.classList.remove('show');
-          }
-        });
-      }
-    });
+    if (dom.lessonModal) {
+      dom.lessonModal.addEventListener('click', (e) => {
+        if (e.target === dom.lessonModal) {
+          dom.lessonModal.classList.remove('show');
+        }
+      });
+    }
 
     // タイムテーブル教室セレクト
     if (dom.timetableRoomSelect) {
